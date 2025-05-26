@@ -1,0 +1,80 @@
+{
+  "name": "rulodb",
+  "description": "Typescript SDK for Rulodb",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "author": {
+    "name": "Gábor Boros",
+    "email": "gabor.brs@gmail.com"
+  },
+  "homepage": "https://github.com/gabor-boros/rulodb",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gabor-boros/rulodb"
+  },
+  "bugs": {
+    "url": "https://github.com/gabor-boros/rulodb/issues"
+  },
+  "keywords": [
+    "database",
+    "rulodb",
+    "rulo",
+    "sdk"
+  ],
+  "license": "Apache-2.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist/",
+    "README.md",
+    "LICENSE"
+  ],
+  "exports": {
+    ".": {
+      "import": "./dist/index.esm.js",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "build": "rollup -c",
+    "clean": "rimraf dist",
+    "prebuild": "npm run clean",
+    "prepare": "npm run build",
+    "lint": "eslint src __tests__ --ext .ts",
+    "test": "jest --verbose --no-cache",
+    "watch": "rollup -c -w",
+    "format": "prettier --write src __tests__"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3.3.1",
+    "@eslint/js": "^9.28.0",
+    "@rollup/plugin-commonjs": "^28.0.3",
+    "@rollup/plugin-node-resolve": "^16.0.1",
+    "@rollup/plugin-terser": "^0.4.4",
+    "@rollup/plugin-typescript": "^12.1.2",
+    "@types/jest": "^29.5.14",
+    "@types/node": "^22.15.29",
+    "@typescript-eslint/eslint-plugin": "^8.33.0",
+    "@typescript-eslint/parser": "^8.33.0",
+    "eslint": "^9.28.0",
+    "eslint-plugin-simple-import-sort": "^12.1.1",
+    "jest": "^29.7.0",
+    "prettier": "^3.5.3",
+    "rimraf": "^6.0.1",
+    "rollup": "^4.41.1",
+    "ts-jest": "^29.3.4",
+    "tslib": "^2.8.1",
+    "typescript": "^5.8.3"
+  },
+  "optionalDependencies": {
+    "@rollup/rollup-linux-x64-gnu": "^4.41.1"
+  }
+}
