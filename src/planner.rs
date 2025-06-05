@@ -288,7 +288,17 @@ impl Planner {
 
             PlanNode::ListDatabases => format!("{pad}ListDatabases"),
 
-            PlanNode::ScanTable { name, .. } => format!("{pad}ScanTable: {name}"),
+            PlanNode::ScanTable { db, name } => {
+                format!(
+                    "{pad}ScanTable: {name}\n{}",
+                    self.explain(
+                        &PlanNode::SelectDatabase {
+                            name: db.clone().unwrap_or_default()
+                        },
+                        indent + 1
+                    ),
+                )
+            }
 
             PlanNode::CreateTable { name, .. } => format!("{pad}CreateTable: {name}"),
 

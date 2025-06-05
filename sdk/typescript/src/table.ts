@@ -1,5 +1,5 @@
 import { ExprBuilder } from './expr';
-import { Term, TermBuilder, TermOptions, TermType } from './terms';
+import { DeepGet, DeepKeys, Term, TermBuilder, TermOptions, TermType } from './terms';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export class TableBuilder<T extends object = any> extends TermBuilder<T> {
@@ -16,8 +16,8 @@ export class TableBuilder<T extends object = any> extends TermBuilder<T> {
     return new TermBuilder<T>(TermType.Insert, [this.build(), docsArray], optargs);
   }
 
-  row<K extends keyof T & string>(field: K): ExprBuilder<T, T[K]> {
-    return new ExprBuilder<T, T[K]>(TermType.GetField, [field]);
+  row<K extends DeepKeys<T> & string>(field: K): ExprBuilder<T, DeepGet<T, K>> {
+    return new ExprBuilder<T, DeepGet<T, K>>(TermType.GetField, [field]);
   }
 
   get(id: string, optargs: TermOptions = {}): TermBuilder<T> {

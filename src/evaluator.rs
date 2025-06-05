@@ -362,11 +362,10 @@ impl<'a> Evaluator<'a> {
 
     #[allow(clippy::only_used_in_recursion)]
     pub fn eval_expr(&self, expr: &Expr, row: &Row) -> Result<Datum, EvalError> {
-        use Expr::{BinaryOp, Column, Constant, UnaryOp};
         match expr {
-            Constant(d) => Ok(d.clone()),
-            Column(c) => Ok(row.get(c).cloned().unwrap_or(Datum::Null)),
-            BinaryOp { op, left, right } => {
+            Expr::Constant(d) => Ok(d.clone()),
+            Expr::Column(c) => Ok(extract_field(row, c).unwrap_or(Datum::Null)),
+            Expr::BinaryOp { op, left, right } => {
                 match (op, self.eval_expr(left, row)?, self.eval_expr(right, row)?) {
                     (BinOp::Eq, a, b) => Ok(Datum::Bool(a == b)),
                     (BinOp::Ne, a, b) => Ok(Datum::Bool(a != b)),
@@ -379,7 +378,7 @@ impl<'a> Evaluator<'a> {
                     _ => Ok(Datum::Null),
                 }
             }
-            UnaryOp { op, expr } => match (op, self.eval_expr(expr, row)?) {
+            Expr::UnaryOp { op, expr } => match (op, self.eval_expr(expr, row)?) {
                 (UnOp::Not, Datum::Bool(b)) => Ok(Datum::Bool(!b)),
                 _ => Ok(Datum::Null),
             },
@@ -406,4 +405,19 @@ fn extract_document_key_value(doc: &Document, key: &DocumentKey) -> Result<Strin
         Some(_) => Err(EvalError::InvalidKeyType),
         None => Err(EvalError::MissingField(key.to_string())),
     }
+}
+
+fn extract_field(doc: &Document, path: &str) -> Option<Datum> {
+    let mut current = doc;
+    let mut iter = path.split('.').peekable();
+
+    while let Some(part) = iter.next() {
+        match current.get(part) {
+            Some(Datum::Object(obj)) if iter.peek().is_some() => current = obj,
+            Some(datum) if iter.peek().is_none() => return Some(datum.clone()),
+            _ => return None,
+        }
+    }
+
+    None
 }

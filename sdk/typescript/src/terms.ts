@@ -4,12 +4,27 @@ export type Join<K, P> = K extends string | number
     : never
   : never;
 
-export type DeepKeys<T> = {
-  [K in keyof T & (string | number)]: T[K] extends object ? K | Join<K, DeepKeys<T[K]>> : K;
-}[keyof T & (string | number)];
+type Prev = [never, 0, 1, 2, 3, 4, 5];
 
-// @ts-expect-error the type is intentionally recursive
-export type FieldAccessor<T> = <K extends DeepKeys<T>>(path: K) => TermBuilder;
+export type DeepKeys<T, D extends number = 5> = [D] extends [0]
+  ? never
+  : {
+      [K in keyof T & (string | number)]: T[K] extends object
+        ? K | Join<K, DeepKeys<T[K], Prev[D]>>
+        : K;
+    }[keyof T & (string | number)];
+
+export type DeepGet<T, P extends string, D extends number = 5> = [D] extends [0]
+  ? unknown
+  : P extends keyof T
+    ? T[P]
+    : P extends `${infer K}.${infer Rest}`
+      ? K extends keyof T
+        ? T[K] extends object
+          ? DeepGet<T[K], Rest, Prev[D]>
+          : unknown
+        : unknown
+      : unknown;
 
 export enum TermType {
   Invalid = 0,
@@ -57,7 +72,13 @@ export type Term = [number, TermArgs, TermOptions] | [number, TermArgs];
 export type QueryResponse<T = Document> = {
   result: T | T[] | null;
   explanation: string;
-  stats: string;
+  stats: {
+    read_count: number;
+    inserted_count: number;
+    deleted_count: number;
+    error_count: number;
+    duration_ms: number;
+  };
 };
 
 export class TermBuilder<T = unknown> {
