@@ -42,7 +42,7 @@ impl Parser {
 
     pub fn parse(&self, value: &Value) -> Result<Term, ParseError> {
         match value {
-            Value::Array(arr) if arr.len() == 3 => self.parse_ast(arr),
+            Value::Array(arr) if arr.len() == 3 || arr.len() == 2 => self.parse_ast(arr),
             v => Err(ParseError::InvalidASTStructure(v.to_string())),
         }
     }
@@ -52,21 +52,12 @@ impl Parser {
         let optargs = self.parse_opt_args(arr)?;
 
         match term_type {
-            TermType::Expr => self.parse_expr_term(arr),
-            TermType::Table => self.parse_table_term(arr),
-            TermType::TableCreate => self.parse_table_create_term(arr),
-            TermType::TableDrop => self.parse_table_drop_term(arr),
-            TermType::TableList => self.parse_table_list_term(arr),
-            TermType::Get => self.parse_get_term(arr, optargs),
-            TermType::GetField => self.parse_get_field_term(arr),
-            TermType::Filter => self.parse_filter_term(arr, optargs),
-            TermType::Delete => self.parse_delete_term(arr, optargs),
-            TermType::Insert => self.parse_insert_term(arr, optargs),
             TermType::Datum => {
                 let args = self.parse_args(arr, 1)?;
                 let datum = self.parse_datum(&args[0])?;
                 Ok(Term::Datum(datum))
             }
+            TermType::Expr => self.parse_expr_term(arr),
             TermType::Eq
             | TermType::Ne
             | TermType::Lt
@@ -76,6 +67,19 @@ impl Parser {
             | TermType::And
             | TermType::Or => self.parse_binary_expr_term(&term_type, arr),
             TermType::Not => self.parse_unary_expr_term(&term_type, arr),
+            TermType::Database => self.parse_database_term(arr),
+            TermType::DatabaseCreate => self.parse_database_create_term(arr),
+            TermType::DatabaseDrop => self.parse_database_drop_term(arr),
+            TermType::DatabaseList => self.parse_database_list_term(arr),
+            TermType::Table => self.parse_table_term(arr),
+            TermType::TableCreate => self.parse_table_create_term(arr),
+            TermType::TableDrop => self.parse_table_drop_term(arr),
+            TermType::TableList => self.parse_table_list_term(arr),
+            TermType::Get => self.parse_get_term(arr, optargs),
+            TermType::GetField => self.parse_get_field_term(arr),
+            TermType::Filter => self.parse_filter_term(arr, optargs),
+            TermType::Delete => self.parse_delete_term(arr, optargs),
+            TermType::Insert => self.parse_insert_term(arr, optargs),
             TermType::Invalid => Err(ParseError::UnexpectedTermType),
         }
     }
@@ -86,27 +90,100 @@ impl Parser {
         Ok(Term::Expr(expr))
     }
 
-    fn parse_table_term(&self, arr: &[Value]) -> Result<Term, ParseError> {
+    fn parse_database_term(&self, arr: &[Value]) -> Result<Term, ParseError> {
         let args = self.parse_args(arr, 1)?;
         let name = match_string(self.parse_datum(&args[0])?)?;
-        Ok(Term::Table { name })
+        Ok(Term::Database { name })
+    }
+
+    fn parse_database_create_term(&self, arr: &[Value]) -> Result<Term, ParseError> {
+        let args = self.parse_args(arr, 1)?;
+        let name = match_string(self.parse_datum(&args[0])?)?;
+        Ok(Term::DatabaseCreate { name })
+    }
+
+    fn parse_database_drop_term(&self, arr: &[Value]) -> Result<Term, ParseError> {
+        let args = self.parse_args(arr, 1)?;
+        let name = match_string(self.parse_datum(&args[0])?)?;
+        Ok(Term::DatabaseDrop { name })
+    }
+
+    fn parse_database_list_term(&self, arr: &[Value]) -> Result<Term, ParseError> {
+        self.parse_args(arr, 0)?;
+        Ok(Term::DatabaseList)
+    }
+
+    fn parse_table_term(&self, arr: &[Value]) -> Result<Term, ParseError> {
+        let args = self.parse_args_between(arr, 1, 2)?;
+        match args.len() {
+            1 => {
+                let name = match_string(self.parse_datum(&args[0])?)?;
+                Ok(Term::Table { db: None, name })
+            }
+            2 => {
+                // First arg is a DB term, not just a string
+                let db_term = parse_term_from_array(&args[0], |arr| self.parse_ast(arr))?;
+                let Term::Database { name: db } = db_term else {
+                    return Err(ParseError::WrongVariant);
+                };
+                let name = match_string(self.parse_datum(&args[1])?)?;
+                Ok(Term::Table { db: Some(db), name })
+            }
+            _ => Err(ParseError::ExpectedArray(1)),
+        }
     }
 
     fn parse_table_create_term(&self, arr: &[Value]) -> Result<Term, ParseError> {
-        let args = self.parse_args(arr, 1)?;
-        let name = match_string(self.parse_datum(&args[0])?)?;
-        Ok(Term::TableCreate { name })
+        let args = self.parse_args_between(arr, 1, 2)?;
+        match args.len() {
+            1 => {
+                let name = match_string(self.parse_datum(&args[0])?)?;
+                Ok(Term::TableCreate { db: None, name })
+            }
+            2 => {
+                let db_term = parse_term_from_array(&args[0], |arr| self.parse_ast(arr))?;
+                let Term::Database { name: db } = db_term else {
+                    return Err(ParseError::WrongVariant);
+                };
+                let name = match_string(self.parse_datum(&args[1])?)?;
+                Ok(Term::TableCreate { db: Some(db), name })
+            }
+            _ => Err(ParseError::ExpectedArray(1)),
+        }
     }
 
     fn parse_table_drop_term(&self, arr: &[Value]) -> Result<Term, ParseError> {
-        let args = self.parse_args(arr, 1)?;
-        let name = match_string(self.parse_datum(&args[0])?)?;
-        Ok(Term::TableDrop { name })
+        let args = self.parse_args_between(arr, 1, 2)?;
+        match args.len() {
+            1 => {
+                let name = match_string(self.parse_datum(&args[0])?)?;
+                Ok(Term::TableDrop { db: None, name })
+            }
+            2 => {
+                let db_term = parse_term_from_array(&args[0], |arr| self.parse_ast(arr))?;
+                let Term::Database { name: db } = db_term else {
+                    return Err(ParseError::WrongVariant);
+                };
+                let name = match_string(self.parse_datum(&args[1])?)?;
+                Ok(Term::TableDrop { db: Some(db), name })
+            }
+            _ => Err(ParseError::ExpectedArray(1)),
+        }
     }
 
     fn parse_table_list_term(&self, arr: &[Value]) -> Result<Term, ParseError> {
-        self.parse_args(arr, 0)?;
-        Ok(Term::TableList)
+        let args = self.parse_args_between(arr, 0, 1)?;
+        match args.len() {
+            0 => Ok(Term::TableList { db: None }),
+            1 => {
+                let db_term = parse_term_from_array(&args[0], |arr| self.parse_ast(arr))?;
+                let Term::Database { name: db } = db_term else {
+                    return Err(ParseError::WrongVariant);
+                };
+                Ok(Term::TableList { db: Some(db) })
+            }
+            _ => Err(ParseError::ExpectedArray(1)),
+        }
     }
 
     fn parse_get_term(&self, arr: &[Value], optargs: OptArgs) -> Result<Term, ParseError> {
@@ -254,29 +331,48 @@ impl Parser {
         match value {
             Value::Array(arr) if !arr.is_empty() => {
                 let term_type = parse_term_type(arr)?;
-
                 match term_type {
-                    TermType::Datum => {
-                        let args = self.parse_args(arr, 1)?;
-                        let datum = self.parse_datum(&args[0])?;
-                        Ok(Expr::Constant(datum))
-                    }
                     TermType::GetField => {
                         let args = self.parse_args(arr, 1)?;
                         let field = match_string(self.parse_datum(&args[0])?)?;
                         Ok(Expr::Column(field))
                     }
-                    _ => {
-                        let term = self.parse_ast(arr)?;
-                        match term {
-                            Term::Expr(expr) => Ok(expr),
-                            Term::Datum(d) => Ok(Expr::Constant(d)),
-                            _ => Err(ParseError::WrongVariant),
+                    TermType::Eq
+                    | TermType::Ne
+                    | TermType::Lt
+                    | TermType::Le
+                    | TermType::Gt
+                    | TermType::Ge
+                    | TermType::And
+                    | TermType::Or => {
+                        if let Term::Expr(expr) = self.parse_binary_expr_term(&term_type, arr)? {
+                            Ok(expr)
+                        } else {
+                            Err(ParseError::WrongVariant)
                         }
+                    }
+                    TermType::Not => {
+                        if let Term::Expr(expr) = self.parse_unary_expr_term(&term_type, arr)? {
+                            Ok(expr)
+                        } else {
+                            Err(ParseError::WrongVariant)
+                        }
+                    }
+                    TermType::Datum => {
+                        let args = self.parse_args(arr, 1)?;
+                        let datum = self.parse_datum(&args[0])?;
+                        Ok(Expr::Constant(datum))
+                    }
+                    _ => {
+                        let datum = self.parse_datum(value)?;
+                        Ok(Expr::Constant(datum))
                     }
                 }
             }
-            _ => Err(ParseError::WrongVariant),
+            _ => {
+                let datum = self.parse_datum(value)?;
+                Ok(Expr::Constant(datum))
+            }
         }
     }
 
@@ -289,6 +385,29 @@ impl Parser {
 
         if args.len() != expected {
             return Err(ParseError::ExpectedArray(expected));
+        }
+
+        Ok(args)
+    }
+
+    #[allow(clippy::unused_self)]
+    fn parse_args_between<'a>(
+        &self,
+        arr: &'a [Value],
+        min_len: usize,
+        max_len: usize,
+    ) -> Result<&'a [Value], ParseError> {
+        let args = match arr.get(1) {
+            Some(Value::Array(args)) => args.as_slice(),
+            _ => return Err(ParseError::ExpectedArray(min_len)),
+        };
+
+        if args.len() < min_len {
+            return Err(ParseError::ExpectedArray(min_len));
+        }
+
+        if args.len() > max_len {
+            return Err(ParseError::ExpectedArray(max_len));
         }
 
         Ok(args)
@@ -372,14 +491,22 @@ mod tests {
 
     #[test]
     fn test_parse_args_wrong_type() {
-        let arr = vec![Value::from(15), Value::Nil, Value::Map(vec![])];
+        let arr = vec![
+            Value::from(TermType::Table as u64),
+            Value::Nil,
+            Value::Map(vec![]),
+        ];
         let err = Parser::new().parse_args(&arr, 1).unwrap_err();
         assert!(matches!(err, ParseError::ExpectedArray(1)));
     }
 
     #[test]
     fn test_parse_args_wrong_len() {
-        let arr = vec![Value::from(15), Value::Array(vec![]), Value::Map(vec![])];
+        let arr = vec![
+            Value::from(TermType::Table as u64),
+            Value::Array(vec![]),
+            Value::Map(vec![]),
+        ];
         let err = Parser::new().parse_args(&arr, 1).unwrap_err();
         assert!(matches!(err, ParseError::ExpectedArray(1)));
     }
@@ -399,12 +526,65 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_database_term() {
+        let input = make_input(
+            TermType::Database as u64,
+            vec![Value::String("database".into())],
+        );
+        let term = parse(input).unwrap();
+        assert_eq!(
+            term,
+            Term::Database {
+                name: "database".to_string()
+            }
+        );
+    }
+
+    #[test]
+    fn test_parse_database_create_term() {
+        let input = make_input(
+            TermType::DatabaseCreate as u64,
+            vec![Value::String("database".into())],
+        );
+        let term = parse(input).unwrap();
+        assert_eq!(
+            term,
+            Term::DatabaseCreate {
+                name: "database".to_string()
+            }
+        );
+    }
+
+    #[test]
+    fn test_parse_database_drop_term() {
+        let input = make_input(
+            TermType::DatabaseDrop as u64,
+            vec![Value::String("database".into())],
+        );
+        let term = parse(input).unwrap();
+        assert_eq!(
+            term,
+            Term::DatabaseDrop {
+                name: "database".to_string()
+            }
+        );
+    }
+
+    #[test]
+    fn test_parse_database_list_term() {
+        let input = make_input(TermType::DatabaseList as u64, vec![]);
+        let term = parse(input).unwrap();
+        assert_eq!(term, Term::DatabaseList);
+    }
+
+    #[test]
     fn test_parse_table_term() {
-        let input = make_input(15, vec![Value::String("table".into())]);
+        let input = make_input(TermType::Table as u64, vec![Value::String("table".into())]);
         let term = parse(input).unwrap();
         assert_eq!(
             term,
             Term::Table {
+                db: None,
                 name: "table".to_string()
             }
         );
@@ -412,11 +592,15 @@ mod tests {
 
     #[test]
     fn test_parse_table_create_term() {
-        let input = make_input(60, vec![Value::String("table".into())]);
+        let input = make_input(
+            TermType::TableCreate as u64,
+            vec![Value::String("table".into())],
+        );
         let term = parse(input).unwrap();
         assert_eq!(
             term,
             Term::TableCreate {
+                db: None,
                 name: "table".to_string()
             }
         );
@@ -424,11 +608,15 @@ mod tests {
 
     #[test]
     fn test_parse_table_drop_term() {
-        let input = make_input(61, vec![Value::String("table".into())]);
+        let input = make_input(
+            TermType::TableDrop as u64,
+            vec![Value::String("table".into())],
+        );
         let term = parse(input).unwrap();
         assert_eq!(
             term,
             Term::TableDrop {
+                db: None,
                 name: "table".to_string()
             }
         );
@@ -436,21 +624,25 @@ mod tests {
 
     #[test]
     fn test_parse_table_list_term() {
-        let input = make_input(62, vec![]);
+        let input = make_input(TermType::TableList as u64, vec![]);
         let term = parse(input).unwrap();
-        assert_eq!(term, Term::TableList);
+        assert_eq!(term, Term::TableList { db: None });
     }
 
     #[test]
     fn test_parse_get_term() {
-        let table = make_input(15, vec![Value::String("table".into())]);
-        let input = make_input(16, vec![Value::Array(table), Value::String("key".into())]);
+        let table = make_input(TermType::Table as u64, vec![Value::String("table".into())]);
+        let input = make_input(
+            TermType::Get as u64,
+            vec![Value::Array(table), Value::String("key".into())],
+        );
 
         let term = parse(input).unwrap();
         assert_eq!(
             term,
             Term::Get {
                 table: Box::new(Term::Table {
+                    db: None,
                     name: "table".to_string()
                 }),
                 key: Datum::String("key".to_string()),
@@ -461,21 +653,25 @@ mod tests {
 
     #[test]
     fn test_parse_get_field_term() {
-        let input = make_input(31, vec![Value::String("foo".into())]);
+        let input = make_input(TermType::GetField as u64, vec![Value::String("foo".into())]);
         let term = Parser::new().parse(&Value::Array(input)).unwrap();
         assert_eq!(term, Term::Expr(Expr::Column("foo".to_string())));
     }
 
     #[test]
     fn test_parse_filter_term() {
-        let table = make_input(15, vec![Value::String("table".into())]);
-        let expected_field = make_input(31, vec![Value::String("foo".into())]);
-        let expected_value = make_input(1, vec![Value::Integer(21.into())]);
+        let table = make_input(TermType::Table as u64, vec![Value::String("table".into())]);
+        let expected_field =
+            make_input(TermType::GetField as u64, vec![Value::String("foo".into())]);
+        let expected_value = make_input(TermType::Datum as u64, vec![Value::Integer(21.into())]);
         let predicate = make_input(
             17,
             vec![Value::Array(expected_field), Value::Array(expected_value)],
         );
-        let input = make_input(39, vec![Value::Array(table), Value::Array(predicate)]);
+        let input = make_input(
+            TermType::Filter as u64,
+            vec![Value::Array(table), Value::Array(predicate)],
+        );
 
         let term = parse(input).unwrap();
         if let Term::Filter {
@@ -487,6 +683,7 @@ mod tests {
             assert_eq!(
                 *source,
                 Term::Table {
+                    db: None,
                     name: "table".to_string()
                 }
             );
@@ -499,14 +696,15 @@ mod tests {
 
     #[test]
     fn test_parse_delete_term() {
-        let table = make_input(15, vec![Value::String("table".into())]);
-        let input = make_input(54, vec![Value::Array(table)]);
+        let table = make_input(TermType::Table as u64, vec![Value::String("table".into())]);
+        let input = make_input(TermType::Delete as u64, vec![Value::Array(table)]);
 
         let term = parse(input).unwrap();
         if let Term::Delete { source, optargs } = term {
             assert_eq!(
                 *source,
                 Term::Table {
+                    db: None,
                     name: "table".to_string()
                 }
             );
@@ -518,7 +716,7 @@ mod tests {
 
     #[test]
     fn test_parse_insert_term() {
-        let table = make_input(15, vec![Value::String("table".into())]);
+        let table = make_input(TermType::Table as u64, vec![Value::String("table".into())]);
         let docs = vec![
             Value::Map(vec![(
                 Value::String("doc1key1".into()),
@@ -529,7 +727,10 @@ mod tests {
                 Value::String("doc2val1".into()),
             )]),
         ];
-        let input = make_input(56, vec![Value::Array(table), Value::Array(docs)]);
+        let input = make_input(
+            TermType::Insert as u64,
+            vec![Value::Array(table), Value::Array(docs)],
+        );
 
         let term = parse(input).unwrap();
         if let Term::Insert {
@@ -541,6 +742,7 @@ mod tests {
             assert_eq!(
                 *table,
                 Term::Table {
+                    db: None,
                     name: "table".to_string()
                 }
             );
@@ -565,7 +767,7 @@ mod tests {
 
     #[test]
     fn test_parse_datum_term() {
-        let input = make_input(1, vec![Value::String("foo".into())]);
+        let input = make_input(TermType::Datum as u64, vec![Value::String("foo".into())]);
 
         let term = parse(input).unwrap();
         assert_eq!(term, Term::Datum(Datum::String("foo".to_string())));
@@ -621,8 +823,8 @@ mod tests {
 
     #[test]
     fn test_parse_expr_term() {
-        let field_expr = make_input(31, vec![Value::String("foo".into())]);
-        let input = make_input(2, vec![Value::Array(field_expr)]);
+        let field_expr = make_input(TermType::GetField as u64, vec![Value::String("foo".into())]);
+        let input = make_input(TermType::Expr as u64, vec![Value::Array(field_expr)]);
 
         let term = parse(input).unwrap();
         if let Term::Expr(Expr::Column(ref s)) = term {
@@ -633,23 +835,9 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_expr_errors() {
-        let parser = Parser::new();
-
-        assert!(matches!(
-            parser.parse_expr(&Value::Nil).unwrap_err(),
-            ParseError::WrongVariant
-        ));
-        assert!(matches!(
-            parser.parse_expr(&Value::Integer(1.into())).unwrap_err(),
-            ParseError::WrongVariant
-        ));
-    }
-
-    #[test]
     fn test_parse_term_from_array() {
         let arr = vec![
-            Value::from(15),
+            Value::from(TermType::Table as u64),
             Value::Array(vec![Value::String("table".into())]),
             Value::Map(Vec::<(Value, Value)>::new()),
         ];
@@ -663,7 +851,7 @@ mod tests {
 
     #[test]
     fn test_parse_term_type() {
-        let arr = vec![Value::from(15)];
+        let arr = vec![Value::from(TermType::Table as u64)];
         assert!(matches!(parse_term_type(&arr).unwrap(), TermType::Table));
         let arr = vec![Value::Nil];
         assert!(matches!(
@@ -674,7 +862,13 @@ mod tests {
 
     #[test]
     fn test_match_table() {
-        assert!(match_table(Term::Table { name: "foo".into() }).is_ok());
+        assert!(
+            match_table(Term::Table {
+                db: None,
+                name: "foo".into()
+            })
+            .is_ok()
+        );
         assert!(match_table(Term::Datum(Datum::Null)).is_err());
     }
 

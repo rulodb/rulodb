@@ -26,17 +26,33 @@ impl std::error::Error for PlanError {}
 /// Planner‐side representation of a compiled/optimized node.
 #[derive(Debug, Clone, PartialEq)]
 pub enum PlanNode {
+    SelectDatabase {
+        name: String,
+    },
+    CreateDatabase {
+        name: String,
+    },
+    DropDatabase {
+        name: String,
+    },
+    ListDatabases,
     ScanTable {
+        db: Option<String>,
         name: String,
     },
     CreateTable {
+        db: Option<String>,
         name: String,
     },
     DropTable {
+        db: Option<String>,
         name: String,
     },
-    ListTables,
+    ListTables {
+        db: Option<String>,
+    },
     GetByKey {
+        db: Option<String>,
         table: String,
         key: Datum,
         optargs: OptArgs,
@@ -55,7 +71,6 @@ pub enum PlanNode {
         source: Box<PlanNode>,
         optargs: OptArgs,
     },
-    // New: A top‐level expression (e.g. Term::Expr) becomes Eval.
     Eval {
         expr: Expr,
     },
@@ -74,22 +89,39 @@ impl Planner {
         match term {
             Term::Expr(e) => Ok(PlanNode::Eval { expr: e.clone() }),
 
-            Term::Table { name } => Ok(PlanNode::ScanTable { name: name.clone() }),
+            Term::Database { name } => Ok(PlanNode::SelectDatabase { name: name.clone() }),
 
-            Term::TableCreate { name } => Ok(PlanNode::CreateTable { name: name.clone() }),
+            Term::DatabaseCreate { name } => Ok(PlanNode::CreateDatabase { name: name.clone() }),
 
-            Term::TableDrop { name } => Ok(PlanNode::DropTable { name: name.clone() }),
+            Term::DatabaseDrop { name } => Ok(PlanNode::DropDatabase { name: name.clone() }),
 
-            Term::TableList => Ok(PlanNode::ListTables),
+            Term::DatabaseList => Ok(PlanNode::ListDatabases),
+
+            Term::Table { db, name } => Ok(PlanNode::ScanTable {
+                db: db.clone(),
+                name: name.clone(),
+            }),
+
+            Term::TableCreate { db, name } => Ok(PlanNode::CreateTable {
+                db: db.clone(),
+                name: name.clone(),
+            }),
+
+            Term::TableDrop { db, name } => Ok(PlanNode::DropTable {
+                db: db.clone(),
+                name: name.clone(),
+            }),
+
+            Term::TableList { db } => Ok(PlanNode::ListTables { db: db.clone() }),
 
             Term::Get {
                 table,
                 key,
                 optargs,
             } => {
-                let table = match &**table {
-                    Term::Table { name } => name.clone(),
-                    _ => format!("{:?}", self.plan(table)?),
+                let (db, table) = match &**table {
+                    Term::Table { db, name, .. } => (db.clone(), name.clone()),
+                    _ => (None, format!("{:?}", self.plan(table)?)),
                 };
 
                 let key = match key {
@@ -100,6 +132,7 @@ impl Planner {
                 };
 
                 Ok(PlanNode::GetByKey {
+                    db,
                     table,
                     key,
                     optargs: optargs.clone(),
@@ -223,30 +256,23 @@ impl Planner {
             },
 
             PlanNode::GetByKey {
+                db,
                 table,
                 key,
                 optargs,
             } => PlanNode::GetByKey {
+                db,
                 table,
                 key,
                 optargs,
             },
 
-            PlanNode::ScanTable { name } => PlanNode::ScanTable { name },
-
-            PlanNode::CreateTable { name } => PlanNode::CreateTable { name },
-
-            PlanNode::DropTable { name } => PlanNode::DropTable { name },
-
-            PlanNode::ListTables => PlanNode::ListTables,
-
             PlanNode::Eval { expr } => {
-                // If the PlanNode is a top‐level Eval(expression), we can simplify that expression here.
                 let simplified = Self::simplify_expr(expr);
                 PlanNode::Eval { expr: simplified }
             }
 
-            PlanNode::Constant(d) => PlanNode::Constant(d),
+            plan_node => plan_node,
         }
     }
 
@@ -254,13 +280,21 @@ impl Planner {
     pub fn explain(&self, plan: &PlanNode, indent: usize) -> String {
         let pad = "  ".repeat(indent);
         match plan {
-            PlanNode::ScanTable { name } => format!("{pad}ScanTable: {name}"),
+            PlanNode::SelectDatabase { name } => format!("{pad}SelectDatabase: {name}"),
 
-            PlanNode::CreateTable { name } => format!("{pad}CreateTable: {name}"),
+            PlanNode::CreateDatabase { name } => format!("{pad}CreateDatabase: {name}"),
 
-            PlanNode::DropTable { name } => format!("{pad}DropTable: {name}"),
+            PlanNode::DropDatabase { name } => format!("{pad}DropDatabase: {name}"),
 
-            PlanNode::ListTables => format!("{pad}ListTables"),
+            PlanNode::ListDatabases => format!("{pad}ListDatabases"),
+
+            PlanNode::ScanTable { name, .. } => format!("{pad}ScanTable: {name}"),
+
+            PlanNode::CreateTable { name, .. } => format!("{pad}CreateTable: {name}"),
+
+            PlanNode::DropTable { name, .. } => format!("{pad}DropTable: {name}"),
+
+            PlanNode::ListTables { .. } => format!("{pad}ListTables"),
 
             PlanNode::GetByKey { table, key, .. } => {
                 format!("{pad}GetByKey: table={table}, key={key:?}")

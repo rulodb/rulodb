@@ -5,9 +5,7 @@ export type Join<K, P> = K extends string | number
   : never;
 
 export type DeepKeys<T> = {
-  [K in keyof T & (string | number)]: T[K] extends object
-    ? K | Join<K, DeepKeys<T[K]>>
-    : K;
+  [K in keyof T & (string | number)]: T[K] extends object ? K | Join<K, DeepKeys<T[K]>> : K;
 }[keyof T & (string | number)];
 
 // @ts-expect-error the type is intentionally recursive
@@ -26,23 +24,27 @@ export enum TermType {
   Not = 23,
   And = 66,
   Or = 67,
+  Database = 14,
   Table = 15,
   Get = 16,
   GetField = 31,
   Filter = 39,
   Delete = 54,
   Insert = 56,
+  DatabaseCreate = 57,
+  DatabaseDrop = 58,
+  DatabaseList = 59,
   TableCreate = 60,
   TableDrop = 61,
-  TableList = 62,
+  TableList = 62
 }
 
 export enum MetaField {
-  id = "id",
-  table = "$table",
+  id = 'id',
+  table = '$table'
 }
 
-export type MandatoryField = "id" | "$table";
+export type MandatoryField = 'id' | '$table';
 
 export type Document = Record<string | MandatoryField, unknown>;
 
@@ -50,7 +52,7 @@ export type TermOptions = Record<string, unknown>;
 
 export type TermArgs = Partial<Array<unknown>>;
 
-export type Term = [number, TermArgs, TermOptions];
+export type Term = [number, TermArgs, TermOptions] | [number, TermArgs];
 
 export type QueryResponse<T = Document> = {
   result: T | T[] | null;
@@ -70,6 +72,7 @@ export class TermBuilder<T = unknown> {
   }
 
   debug(): this {
+    console.dir(this.build(), { depth: null });
     return this;
   }
 

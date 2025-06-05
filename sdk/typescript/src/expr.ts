@@ -1,15 +1,12 @@
-import { Term, TermBuilder, TermOptions, TermType } from "./terms";
+import { Term, TermBuilder, TermOptions, TermType } from './terms';
 
-export class ExprBuilder<
-  T = Record<string, unknown>,
-  V = unknown,
-> extends TermBuilder<T> {
+export class ExprBuilder<T = Record<string, unknown>, V = unknown> extends TermBuilder<T> {
   constructor(type: TermType, args: unknown[], optargs: TermOptions = {}) {
     super(type, args, optargs);
   }
 
   build(): Term {
-    return [this.term[0], this.term[1]] as unknown as Term;
+    return [this.term[0], this.term[1]];
   }
 
   protected getTerm(termType: TermType, value: V) {
@@ -21,17 +18,17 @@ export class ExprBuilder<
       if (
         v === null ||
         v === undefined ||
-        typeof v === "string" ||
-        typeof v === "number" ||
-        typeof v === "boolean"
+        typeof v === 'string' ||
+        typeof v === 'number' ||
+        typeof v === 'boolean'
       ) {
         return [TermType.Datum, [v]];
       }
 
       return [TermType.Expr, [v]];
     };
-    const baseTerm = unwrap(this);
-    return [termType, [baseTerm, unwrap(value)]];
+
+    return [termType, [unwrap(this), unwrap(value)]];
   }
 
   eq(value: V): ExprBuilder<T> {
@@ -80,9 +77,7 @@ export class ExprBuilder<
   }
 }
 
-export function expr<T = Record<string, unknown>, V = unknown>(
-  value: V,
-): ExprBuilder<T> {
+export function expr<T = Record<string, unknown>, V = unknown>(value: V): ExprBuilder<T> {
   // Avoid double-wrapping if already an ExprBuilder
   if (value instanceof ExprBuilder) {
     return value;

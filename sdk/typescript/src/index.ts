@@ -1,7 +1,10 @@
-import { db } from "./db";
-import { expr } from "./expr";
+import { createDatabase, db, dropDatabase, listDatabases } from './db';
+import { expr } from './expr';
 
 export const r = {
   db,
-  expr,
+  listDatabases,
+  createDatabase,
+  dropDatabase,
+  expr
 };
