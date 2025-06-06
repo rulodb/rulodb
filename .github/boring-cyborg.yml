@@ -1,0 +1,18 @@
+labelPRBasedOnFilePath:
+  build:
+    - .github/workflows/**/*
+  "sdk:typescript":
+    - sdk/typescript/**/*
+  legal:
+    - LICENSE
+    - sdk/**/LICENSE
+
+firstPRWelcomeComment: |
+  Thanks for opening this pull request! 🥳
+  Please check out our [contributing guide](https://github.com/rulodb/rulodb/blob/main/CONTRIBUTING.md).
+
+firstPRMergeComment: |
+  Awesome work, congrats on your first merged pull request! 🎉 🥳
+
+firstIssueWelcomeComment: |
+  Thanks for opening your first issue here! 🎉 We will triage it soon.

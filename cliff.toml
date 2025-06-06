@@ -22,7 +22,7 @@ body = """
     {% for commit in commits %}
         {% if commit.scope %}*({{ commit.scope }})* {% endif %}\
             {% if commit.breaking %}[**breaking**] {% endif %}\
-            - {{ commit.message | upper_first }} ([{{ commit.id | truncate(length=7, end="") }}](https://github.com/gabor-boros/rulodb/commit/{{ commit.id }}))\
+            - {{ commit.message | upper_first }} ([{{ commit.id | truncate(length=7, end="") }}](https://github.com/rulodb/rulodb/commit/{{ commit.id }}))\
     {% endfor %}
 {% endfor %}\n
 """

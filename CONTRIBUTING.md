@@ -95,7 +95,7 @@ See also: #456, #789
 
 ## Code of Conduct
 
-Please be respectful and follow the [Contributor Covenant](https://www.contributor-covenant.org/).
+Please be respectful and follow the [Code of Conduct](./CODE_OF_CONDUCT.md).
 
 ## Developer's Certificate of Origin
 

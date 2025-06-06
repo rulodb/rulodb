@@ -1,6 +1,6 @@
-[![Build](https://github.com/gabor-boros/rulodb/actions/workflows/build.yml/badge.svg)](https://github.com/gabor-boros/rulodb/actions/workflows/build.yml)
+[![Build](https://github.com/rulodb/rulodb/actions/workflows/build.yml/badge.svg)](https://github.com/rulodb/rulodb/actions/workflows/build.yml)
 [![License](https://img.shields.io/badge/license-Apache%202.0-green.svg)](./LICENSE)
-[![codecov](https://codecov.io/gh/gabor-boros/rulodb/graph/badge.svg?token=9NVFTUXUEV)](https://codecov.io/gh/gabor-boros/rulodb)
+[![codecov](https://codecov.io/gh/rulodb/rulodb/graph/badge.svg?token=9NVFTUXUEV)](https://codecov.io/gh/rulodb/rulodb)
 
 <br />
 <div align="center">
