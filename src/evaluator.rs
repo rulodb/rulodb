@@ -364,7 +364,9 @@ impl<'a> Evaluator<'a> {
     pub fn eval_expr(&self, expr: &Expr, row: &Row) -> Result<Datum, EvalError> {
         match expr {
             Expr::Constant(d) => Ok(d.clone()),
-            Expr::Column(c) => Ok(extract_field(row, c).unwrap_or(Datum::Null)),
+            Expr::Field { name, separator } => {
+                Ok(extract_field(row, name, separator.clone()).unwrap_or(Datum::Null))
+            }
             Expr::BinaryOp { op, left, right } => {
                 match (op, self.eval_expr(left, row)?, self.eval_expr(right, row)?) {
                     (BinOp::Eq, a, b) => Ok(Datum::Bool(a == b)),
@@ -407,9 +409,10 @@ fn extract_document_key_value(doc: &Document, key: &DocumentKey) -> Result<Strin
     }
 }
 
-fn extract_field(doc: &Document, path: &str) -> Option<Datum> {
+fn extract_field(doc: &Document, path: &str, separator: Option<String>) -> Option<Datum> {
     let mut current = doc;
-    let mut iter = path.split('.').peekable();
+    let separator = separator.unwrap_or_else(|| ".".to_string());
+    let mut iter = path.split(&separator).peekable();
 
     while let Some(part) = iter.next() {
         match current.get(part) {

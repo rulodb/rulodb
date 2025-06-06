@@ -6,10 +6,11 @@ use std::collections::BTreeMap;
 
 #[derive(Debug)]
 pub enum ParseError {
-    ExpectedArray(usize),
+    ExpectedArray,
     ExpectedString,
     ExpectedInteger,
     ExpectedDecimal(f64),
+    WrongNumberOfArgs(usize),
     WrongVariant,
     WrongDatum,
     InvalidASTStructure(String),
@@ -19,10 +20,11 @@ pub enum ParseError {
 impl std::fmt::Display for ParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::ExpectedArray(len) => write!(f, "expected array of length {len}"),
+            Self::ExpectedArray => write!(f, "expected array"),
             Self::ExpectedString => write!(f, "expected string"),
             Self::ExpectedInteger => write!(f, "expected integer"),
             Self::ExpectedDecimal(v) => write!(f, "expected decimal, got {v}"),
+            Self::WrongNumberOfArgs(len) => write!(f, "wrong number of arguments, received {len}"),
             Self::WrongVariant => write!(f, "wrong variant"),
             Self::WrongDatum => write!(f, "wrong datum"),
             Self::InvalidASTStructure(v) => write!(f, "invalid AST structure: {v}"),
@@ -49,15 +51,16 @@ impl Parser {
 
     fn parse_ast(&self, arr: &[Value]) -> Result<Term, ParseError> {
         let term_type = parse_term_type(arr)?;
-        let optargs = self.parse_opt_args(arr)?;
+        let args = self.parse_args(arr)?;
+        let opt_args = self.parse_opt_args(arr)?;
 
         match term_type {
             TermType::Datum => {
-                let args = self.parse_args(arr, 1)?;
+                check_arg_count(args, 1)?;
                 let datum = self.parse_datum(&args[0])?;
                 Ok(Term::Datum(datum))
             }
-            TermType::Expr => self.parse_expr_term(arr),
+            TermType::Expr => self.parse_expr_term(args),
             TermType::Eq
             | TermType::Ne
             | TermType::Lt
@@ -65,56 +68,57 @@ impl Parser {
             | TermType::Gt
             | TermType::Ge
             | TermType::And
-            | TermType::Or => self.parse_binary_expr_term(&term_type, arr),
-            TermType::Not => self.parse_unary_expr_term(&term_type, arr),
-            TermType::Database => self.parse_database_term(arr),
-            TermType::DatabaseCreate => self.parse_database_create_term(arr),
-            TermType::DatabaseDrop => self.parse_database_drop_term(arr),
-            TermType::DatabaseList => self.parse_database_list_term(arr),
-            TermType::Table => self.parse_table_term(arr),
-            TermType::TableCreate => self.parse_table_create_term(arr),
-            TermType::TableDrop => self.parse_table_drop_term(arr),
-            TermType::TableList => self.parse_table_list_term(arr),
-            TermType::Get => self.parse_get_term(arr, optargs),
-            TermType::GetField => self.parse_get_field_term(arr),
-            TermType::Filter => self.parse_filter_term(arr, optargs),
-            TermType::Delete => self.parse_delete_term(arr, optargs),
-            TermType::Insert => self.parse_insert_term(arr, optargs),
+            | TermType::Or => self.parse_binary_expr_term(&term_type, args),
+            TermType::Not => self.parse_unary_expr_term(&term_type, args),
+            TermType::Database => self.parse_database_term(args),
+            TermType::DatabaseCreate => self.parse_database_create_term(args),
+            TermType::DatabaseDrop => self.parse_database_drop_term(args),
+            TermType::DatabaseList => self.parse_database_list_term(args),
+            TermType::Table => self.parse_table_term(args),
+            TermType::TableCreate => self.parse_table_create_term(args),
+            TermType::TableDrop => self.parse_table_drop_term(args),
+            TermType::TableList => self.parse_table_list_term(args),
+            TermType::Get => self.parse_get_term(args, opt_args),
+            TermType::GetField => self.parse_get_field_term(args, &opt_args),
+            TermType::Filter => self.parse_filter_term(args, opt_args),
+            TermType::Delete => self.parse_delete_term(args, opt_args),
+            TermType::Insert => self.parse_insert_term(args, opt_args),
             TermType::Invalid => Err(ParseError::UnexpectedTermType),
         }
     }
 
-    fn parse_expr_term(&self, arr: &[Value]) -> Result<Term, ParseError> {
-        let args = self.parse_args(arr, 1)?;
+    fn parse_expr_term(&self, args: &[Value]) -> Result<Term, ParseError> {
+        check_arg_count(args, 1)?;
         let expr = self.parse_expr(&args[0])?;
         Ok(Term::Expr(expr))
     }
 
-    fn parse_database_term(&self, arr: &[Value]) -> Result<Term, ParseError> {
-        let args = self.parse_args(arr, 1)?;
+    fn parse_database_term(&self, args: &[Value]) -> Result<Term, ParseError> {
+        check_arg_count(args, 1)?;
         let name = match_string(self.parse_datum(&args[0])?)?;
         Ok(Term::Database { name })
     }
 
-    fn parse_database_create_term(&self, arr: &[Value]) -> Result<Term, ParseError> {
-        let args = self.parse_args(arr, 1)?;
+    fn parse_database_create_term(&self, args: &[Value]) -> Result<Term, ParseError> {
+        check_arg_count(args, 1)?;
         let name = match_string(self.parse_datum(&args[0])?)?;
         Ok(Term::DatabaseCreate { name })
     }
 
-    fn parse_database_drop_term(&self, arr: &[Value]) -> Result<Term, ParseError> {
-        let args = self.parse_args(arr, 1)?;
+    fn parse_database_drop_term(&self, args: &[Value]) -> Result<Term, ParseError> {
+        check_arg_count(args, 1)?;
         let name = match_string(self.parse_datum(&args[0])?)?;
         Ok(Term::DatabaseDrop { name })
     }
 
-    fn parse_database_list_term(&self, arr: &[Value]) -> Result<Term, ParseError> {
-        self.parse_args(arr, 0)?;
+    #[allow(clippy::unused_self)]
+    fn parse_database_list_term(&self, args: &[Value]) -> Result<Term, ParseError> {
+        check_arg_count(args, 0)?;
         Ok(Term::DatabaseList)
     }
 
-    fn parse_table_term(&self, arr: &[Value]) -> Result<Term, ParseError> {
-        let args = self.parse_args_between(arr, 1, 2)?;
+    fn parse_table_term(&self, args: &[Value]) -> Result<Term, ParseError> {
+        check_arg_count_between(args, 1, 2)?;
         match args.len() {
             1 => {
                 let name = match_string(self.parse_datum(&args[0])?)?;
@@ -129,12 +133,12 @@ impl Parser {
                 let name = match_string(self.parse_datum(&args[1])?)?;
                 Ok(Term::Table { db: Some(db), name })
             }
-            _ => Err(ParseError::ExpectedArray(1)),
+            n => Err(ParseError::WrongNumberOfArgs(n)),
         }
     }
 
-    fn parse_table_create_term(&self, arr: &[Value]) -> Result<Term, ParseError> {
-        let args = self.parse_args_between(arr, 1, 2)?;
+    fn parse_table_create_term(&self, args: &[Value]) -> Result<Term, ParseError> {
+        check_arg_count_between(args, 1, 2)?;
         match args.len() {
             1 => {
                 let name = match_string(self.parse_datum(&args[0])?)?;
@@ -148,12 +152,12 @@ impl Parser {
                 let name = match_string(self.parse_datum(&args[1])?)?;
                 Ok(Term::TableCreate { db: Some(db), name })
             }
-            _ => Err(ParseError::ExpectedArray(1)),
+            n => Err(ParseError::WrongNumberOfArgs(n)),
         }
     }
 
-    fn parse_table_drop_term(&self, arr: &[Value]) -> Result<Term, ParseError> {
-        let args = self.parse_args_between(arr, 1, 2)?;
+    fn parse_table_drop_term(&self, args: &[Value]) -> Result<Term, ParseError> {
+        check_arg_count_between(args, 1, 2)?;
         match args.len() {
             1 => {
                 let name = match_string(self.parse_datum(&args[0])?)?;
@@ -167,12 +171,12 @@ impl Parser {
                 let name = match_string(self.parse_datum(&args[1])?)?;
                 Ok(Term::TableDrop { db: Some(db), name })
             }
-            _ => Err(ParseError::ExpectedArray(1)),
+            n => Err(ParseError::WrongNumberOfArgs(n)),
         }
     }
 
-    fn parse_table_list_term(&self, arr: &[Value]) -> Result<Term, ParseError> {
-        let args = self.parse_args_between(arr, 0, 1)?;
+    fn parse_table_list_term(&self, args: &[Value]) -> Result<Term, ParseError> {
+        check_arg_count_between(args, 0, 2)?;
         match args.len() {
             0 => Ok(Term::TableList { db: None }),
             1 => {
@@ -182,44 +186,44 @@ impl Parser {
                 };
                 Ok(Term::TableList { db: Some(db) })
             }
-            _ => Err(ParseError::ExpectedArray(1)),
+            n => Err(ParseError::WrongNumberOfArgs(n)),
         }
     }
 
-    fn parse_get_term(&self, arr: &[Value], optargs: OptArgs) -> Result<Term, ParseError> {
-        let args = self.parse_args(arr, 2)?;
+    fn parse_get_term(&self, args: &[Value], opt_args: OptArgs) -> Result<Term, ParseError> {
+        check_arg_count(args, 2)?;
         let table = parse_term_from_array(&args[0], |arr| self.parse_ast(arr))?;
         let table = match_table(table)?;
         let key = match_key(self.parse_datum(&args[1])?)?;
         Ok(Term::Get {
             table: Box::new(table),
             key,
-            optargs,
+            opt_args,
         })
     }
 
-    fn parse_filter_term(&self, arr: &[Value], optargs: OptArgs) -> Result<Term, ParseError> {
-        let args = self.parse_args(arr, 2)?;
+    fn parse_filter_term(&self, args: &[Value], opt_args: OptArgs) -> Result<Term, ParseError> {
+        check_arg_count(args, 2)?;
         let source = parse_term_from_array(&args[0], |arr| self.parse_ast(arr))?;
         let predicate = parse_term_from_array(&args[1], |arr| self.parse_ast(arr))?;
         Ok(Term::Filter {
             source: Box::new(source),
             predicate: Box::new(predicate),
-            optargs,
+            opt_args,
         })
     }
 
-    fn parse_delete_term(&self, arr: &[Value], optargs: OptArgs) -> Result<Term, ParseError> {
-        let args = self.parse_args(arr, 1)?;
+    fn parse_delete_term(&self, args: &[Value], opt_args: OptArgs) -> Result<Term, ParseError> {
+        check_arg_count(args, 1)?;
         let source = parse_term_from_array(&args[0], |arr| self.parse_ast(arr))?;
         Ok(Term::Delete {
             source: Box::new(source),
-            optargs,
+            opt_args,
         })
     }
 
-    fn parse_insert_term(&self, arr: &[Value], optargs: OptArgs) -> Result<Term, ParseError> {
-        let args = self.parse_args(arr, 2)?;
+    fn parse_insert_term(&self, args: &[Value], opt_args: OptArgs) -> Result<Term, ParseError> {
+        check_arg_count(args, 2)?;
         let table = parse_term_from_array(&args[0], |arr| self.parse_ast(arr))?;
         let table = match_table(table)?;
         let documents = match &args[1] {
@@ -227,12 +231,12 @@ impl Parser {
                 .iter()
                 .map(|v| self.parse_datum(v))
                 .collect::<Result<Vec<_>, _>>()?,
-            _ => return Err(ParseError::ExpectedArray(2)),
+            _ => return Err(ParseError::ExpectedArray),
         };
         Ok(Term::Insert {
             table: Box::new(table),
             documents,
-            optargs,
+            opt_args,
         })
     }
 
@@ -274,21 +278,31 @@ impl Parser {
         }
     }
 
-    fn parse_get_field_term(&self, arr: &[Value]) -> Result<Term, ParseError> {
-        let args = self.parse_args(arr, 1)?;
+    fn parse_get_field_term(&self, args: &[Value], opt_args: &OptArgs) -> Result<Term, ParseError> {
+        check_arg_count(args, 1)?;
         let field = match_string(self.parse_datum(&args[0])?)?;
-        Ok(Term::Expr(Expr::Column(field)))
+        let separator = opt_args.get("separator").and_then(|term| {
+            if let Term::Datum(Datum::String(s)) = term {
+                Some(s.clone())
+            } else {
+                None
+            }
+        });
+
+        Ok(Term::Expr(Expr::Field {
+            name: field,
+            separator,
+        }))
     }
 
     fn parse_binary_expr_term(
         &self,
         term_type: &TermType,
-        arr: &[Value],
+        args: &[Value],
     ) -> Result<Term, ParseError> {
-        let args = self.parse_args(arr, 2)?;
+        check_arg_count(args, 2)?;
         let left = self.parse_expr(&args[0])?;
         let right = self.parse_expr(&args[1])?;
-
         let op = match term_type {
             TermType::Eq => BinOp::Eq,
             TermType::Ne => BinOp::Ne,
@@ -311,11 +325,10 @@ impl Parser {
     fn parse_unary_expr_term(
         &self,
         term_type: &TermType,
-        arr: &[Value],
+        args: &[Value],
     ) -> Result<Term, ParseError> {
-        let args = self.parse_args(arr, 1)?;
+        check_arg_count(args, 1)?;
         let expr = self.parse_expr(&args[0])?;
-
         let op = match term_type {
             TermType::Not => UnOp::Not,
             _ => return Err(ParseError::UnexpectedTermType),
@@ -331,11 +344,24 @@ impl Parser {
         match value {
             Value::Array(arr) if !arr.is_empty() => {
                 let term_type = parse_term_type(arr)?;
+                let args = self.parse_args(arr)?;
+                let opt_args = self.parse_opt_args(arr)?;
+
                 match term_type {
                     TermType::GetField => {
-                        let args = self.parse_args(arr, 1)?;
                         let field = match_string(self.parse_datum(&args[0])?)?;
-                        Ok(Expr::Column(field))
+                        let separator = opt_args.get("separator").and_then(|term| {
+                            if let Term::Datum(Datum::String(s)) = term {
+                                Some(s.clone())
+                            } else {
+                                None
+                            }
+                        });
+
+                        Ok(Expr::Field {
+                            name: field,
+                            separator,
+                        })
                     }
                     TermType::Eq
                     | TermType::Ne
@@ -345,21 +371,23 @@ impl Parser {
                     | TermType::Ge
                     | TermType::And
                     | TermType::Or => {
-                        if let Term::Expr(expr) = self.parse_binary_expr_term(&term_type, arr)? {
+                        let term = self.parse_binary_expr_term(&term_type, args)?;
+                        if let Term::Expr(expr) = term {
                             Ok(expr)
                         } else {
                             Err(ParseError::WrongVariant)
                         }
                     }
                     TermType::Not => {
-                        if let Term::Expr(expr) = self.parse_unary_expr_term(&term_type, arr)? {
+                        let term = self.parse_unary_expr_term(&term_type, args)?;
+                        if let Term::Expr(expr) = term {
                             Ok(expr)
                         } else {
                             Err(ParseError::WrongVariant)
                         }
                     }
                     TermType::Datum => {
-                        let args = self.parse_args(arr, 1)?;
+                        check_arg_count(args, 1)?;
                         let datum = self.parse_datum(&args[0])?;
                         Ok(Expr::Constant(datum))
                     }
@@ -377,55 +405,26 @@ impl Parser {
     }
 
     #[allow(clippy::unused_self)]
-    fn parse_args<'a>(&self, arr: &'a [Value], expected: usize) -> Result<&'a [Value], ParseError> {
-        let args = match arr.get(1) {
-            Some(Value::Array(args)) => args.as_slice(),
-            _ => return Err(ParseError::ExpectedArray(expected)),
-        };
-
-        if args.len() != expected {
-            return Err(ParseError::ExpectedArray(expected));
+    fn parse_args<'a>(&self, arr: &'a [Value]) -> Result<&'a [Value], ParseError> {
+        match arr.get(1) {
+            Some(Value::Array(args)) => Ok(args.as_slice()),
+            _ => Err(ParseError::ExpectedArray),
         }
-
-        Ok(args)
     }
 
-    #[allow(clippy::unused_self)]
-    fn parse_args_between<'a>(
-        &self,
-        arr: &'a [Value],
-        min_len: usize,
-        max_len: usize,
-    ) -> Result<&'a [Value], ParseError> {
-        let args = match arr.get(1) {
-            Some(Value::Array(args)) => args.as_slice(),
-            _ => return Err(ParseError::ExpectedArray(min_len)),
-        };
-
-        if args.len() < min_len {
-            return Err(ParseError::ExpectedArray(min_len));
-        }
-
-        if args.len() > max_len {
-            return Err(ParseError::ExpectedArray(max_len));
-        }
-
-        Ok(args)
-    }
-
-    fn parse_opt_args(&self, arr: &[Value]) -> Result<OptArgs, ParseError> {
-        let mut optargs = OptArgs::new();
-        if let Some(Value::Map(map)) = arr.get(2) {
+    fn parse_opt_args(&self, args: &[Value]) -> Result<OptArgs, ParseError> {
+        let mut opt_args = OptArgs::new();
+        if let Some(Value::Map(map)) = args.get(2) {
             for (k, v) in map {
                 let key = match k {
                     Value::String(s) => s.as_str().ok_or(ParseError::ExpectedString)?.to_string(),
                     _ => return Err(ParseError::ExpectedString),
                 };
-                let term = parse_term_from_array(v, |arr| self.parse_ast(arr))?;
-                optargs.insert(key, term);
+                let value = self.parse_datum(v)?;
+                opt_args.insert(key, Term::Datum(value));
             }
         }
-        Ok(optargs)
+        Ok(opt_args)
     }
 }
 
@@ -435,7 +434,7 @@ fn parse_term_from_array<T>(
 ) -> Result<T, ParseError> {
     match value {
         Value::Array(arr) => f(arr),
-        _ => Err(ParseError::ExpectedArray(3)),
+        _ => Err(ParseError::ExpectedArray),
     }
 }
 
@@ -445,6 +444,25 @@ fn parse_term_type(arr: &[Value]) -> Result<TermType, ParseError> {
         .and_then(Value::as_u64)
         .ok_or(ParseError::ExpectedInteger)?;
     Ok(TermType::from(term_type))
+}
+
+const fn check_arg_count(arr: &[Value], length: usize) -> Result<(), ParseError> {
+    if arr.len() == length {
+        Ok(())
+    } else {
+        Err(ParseError::WrongNumberOfArgs(arr.len()))
+    }
+}
+
+const fn check_arg_count_between(
+    arr: &[Value],
+    min_len: usize,
+    max_len: usize,
+) -> Result<(), ParseError> {
+    match arr.len() {
+        len if len < min_len || len > max_len => Err(ParseError::WrongNumberOfArgs(len)),
+        _ => Ok(()),
+    }
 }
 
 fn match_table(table: Term) -> Result<Term, ParseError> {
@@ -485,6 +503,18 @@ mod tests {
         ]
     }
 
+    fn make_input_with_opt_args(
+        term_type: u64,
+        args: Vec<Value>,
+        opt_args: Vec<(Value, Value)>,
+    ) -> Vec<Value> {
+        vec![
+            Value::from(term_type),
+            Value::Array(args),
+            Value::Map(opt_args),
+        ]
+    }
+
     fn parse(input: Vec<Value>) -> Result<Term, ParseError> {
         Parser::new().parse(&Value::Array(input))
     }
@@ -496,19 +526,8 @@ mod tests {
             Value::Nil,
             Value::Map(vec![]),
         ];
-        let err = Parser::new().parse_args(&arr, 1).unwrap_err();
-        assert!(matches!(err, ParseError::ExpectedArray(1)));
-    }
-
-    #[test]
-    fn test_parse_args_wrong_len() {
-        let arr = vec![
-            Value::from(TermType::Table as u64),
-            Value::Array(vec![]),
-            Value::Map(vec![]),
-        ];
-        let err = Parser::new().parse_args(&arr, 1).unwrap_err();
-        assert!(matches!(err, ParseError::ExpectedArray(1)));
+        let err = Parser::new().parse_args(&arr).unwrap_err();
+        assert!(matches!(err, ParseError::ExpectedArray));
     }
 
     #[test]
@@ -646,7 +665,7 @@ mod tests {
                     name: "table".to_string()
                 }),
                 key: Datum::String("key".to_string()),
-                optargs: OptArgs::new(),
+                opt_args: OptArgs::new(),
             }
         );
     }
@@ -655,7 +674,30 @@ mod tests {
     fn test_parse_get_field_term() {
         let input = make_input(TermType::GetField as u64, vec![Value::String("foo".into())]);
         let term = Parser::new().parse(&Value::Array(input)).unwrap();
-        assert_eq!(term, Term::Expr(Expr::Column("foo".to_string())));
+        assert_eq!(
+            term,
+            Term::Expr(Expr::Field {
+                name: "foo".to_string(),
+                separator: None
+            })
+        );
+    }
+
+    #[test]
+    fn test_parse_get_field_term_with_separator() {
+        let input = make_input_with_opt_args(
+            TermType::GetField as u64,
+            vec![Value::String("foo".into())],
+            vec![(Value::String("separator".into()), Value::String(",".into()))],
+        );
+        let term = Parser::new().parse(&Value::Array(input)).unwrap();
+        assert_eq!(
+            term,
+            Term::Expr(Expr::Field {
+                name: "foo".to_string(),
+                separator: Some(",".to_string())
+            })
+        );
     }
 
     #[test]
@@ -677,7 +719,7 @@ mod tests {
         if let Term::Filter {
             source,
             predicate,
-            optargs,
+            opt_args,
         } = term
         {
             assert_eq!(
@@ -688,7 +730,7 @@ mod tests {
                 }
             );
             assert!(matches!(*predicate, Term::Expr(_)));
-            assert_eq!(optargs.len(), 0);
+            assert_eq!(opt_args.len(), 0);
         } else {
             panic!()
         }
@@ -700,7 +742,7 @@ mod tests {
         let input = make_input(TermType::Delete as u64, vec![Value::Array(table)]);
 
         let term = parse(input).unwrap();
-        if let Term::Delete { source, optargs } = term {
+        if let Term::Delete { source, opt_args } = term {
             assert_eq!(
                 *source,
                 Term::Table {
@@ -708,7 +750,7 @@ mod tests {
                     name: "table".to_string()
                 }
             );
-            assert_eq!(optargs.len(), 0);
+            assert_eq!(opt_args.len(), 0);
         } else {
             panic!()
         }
@@ -736,7 +778,7 @@ mod tests {
         if let Term::Insert {
             table,
             documents,
-            optargs,
+            opt_args,
         } = term
         {
             assert_eq!(
@@ -759,7 +801,7 @@ mod tests {
                     ),])),
                 ]
             );
-            assert_eq!(optargs.len(), 0);
+            assert_eq!(opt_args.len(), 0);
         } else {
             panic!()
         }
@@ -827,7 +869,11 @@ mod tests {
         let input = make_input(TermType::Expr as u64, vec![Value::Array(field_expr)]);
 
         let term = parse(input).unwrap();
-        if let Term::Expr(Expr::Column(ref s)) = term {
+        if let Term::Expr(Expr::Field {
+            name: ref s,
+            separator: None,
+        }) = term
+        {
             assert_eq!(s, "foo");
         } else {
             panic!()
@@ -845,7 +891,7 @@ mod tests {
         assert_eq!(res.unwrap(), 3);
         assert!(matches!(
             parse_term_from_array(&Value::Nil, |_| Ok(0)).unwrap_err(),
-            ParseError::ExpectedArray(3)
+            ParseError::ExpectedArray
         ));
     }
 

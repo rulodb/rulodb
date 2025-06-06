@@ -3,13 +3,13 @@ import { MetaField, QueryResponse, TermBuilder, TermOptions, TermType } from '..
 describe('TermBuilder', () => {
   it('should build a term with correct structure', () => {
     const builder = new TermBuilder(TermType.Table, ['users']);
-    expect(builder.build()).toEqual([TermType.Table, ['users'], {}]);
+    expect(builder.build()).toEqual([TermType.Table, ['users']]);
   });
 
-  it('should accept and store optargs', () => {
-    const optargs: TermOptions = { foo: 'bar' };
-    const builder = new TermBuilder(TermType.Table, ['users'], optargs);
-    expect(builder.build()).toEqual([TermType.Table, ['users'], optargs]);
+  it('should accept and store optArgs', () => {
+    const optArgs: TermOptions = { foo: 'bar' };
+    const builder = new TermBuilder(TermType.Table, ['users'], optArgs);
+    expect(builder.build()).toEqual([TermType.Table, ['users'], optArgs]);
   });
 
   it('should return itself from debug()', () => {
@@ -32,7 +32,7 @@ describe('TermBuilder', () => {
     };
     const client = { send: jest.fn().mockResolvedValue(mockResponse) };
     const result = await builder.run(client);
-    expect(client.send).toHaveBeenCalledWith([TermType.Table, ['users'], {}]);
+    expect(client.send).toHaveBeenCalledWith([TermType.Table, ['users']]);
     expect(result).toBe(mockResponse);
   });
 });

@@ -7,7 +7,8 @@ All notable changes to this project will be documented in this file.
 ### Features
 
 - Initial commit ([c75707a](https://github.com/gabor-boros/rulodb/commit/c75707a5a69729ad8714d88b7df2862041fd0208))
-- Add database ops and simplify parsing ([88d320d](https://github.com/gabor-boros/rulodb/commit/88d320d1d85ad0ab7649b1718511f720225f836c))
-- Implement nested field lookup for `r.row` ([b0708dc](https://github.com/gabor-boros/rulodb/commit/b0708dc4580706116a62c93abf05679b8a6983a9))
+- Add database ops and simplify parsing ([fcb8507](https://github.com/gabor-boros/rulodb/commit/fcb8507ca35afc5955a7e567e3866e4fc38a7e66))
+- Implement nested field lookup for `r.row` ([c9174de](https://github.com/gabor-boros/rulodb/commit/c9174def8e38401347b8ded1332ebb3d165a8162))
+- Support custom separator for getting a field ([b467ea2](https://github.com/gabor-boros/rulodb/commit/b467ea290731668b1c70f53f0caddb1e571dd1a4))
 
 

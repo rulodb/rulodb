@@ -55,21 +55,21 @@ pub enum PlanNode {
         db: Option<String>,
         table: String,
         key: Datum,
-        optargs: OptArgs,
+        opt_args: OptArgs,
     },
     Filter {
         source: Box<PlanNode>,
         predicate: Expr, // raw Expr, to be simplified in optimize()
-        optargs: OptArgs,
+        opt_args: OptArgs,
     },
     Insert {
         table: Box<PlanNode>,
         documents: Vec<Datum>,
-        optargs: OptArgs,
+        opt_args: OptArgs,
     },
     Delete {
         source: Box<PlanNode>,
-        optargs: OptArgs,
+        opt_args: OptArgs,
     },
     Eval {
         expr: Expr,
@@ -117,7 +117,7 @@ impl Planner {
             Term::Get {
                 table,
                 key,
-                optargs,
+                opt_args,
             } => {
                 let (db, table) = match &**table {
                     Term::Table { db, name, .. } => (db.clone(), name.clone()),
@@ -135,20 +135,20 @@ impl Planner {
                     db,
                     table,
                     key,
-                    optargs: optargs.clone(),
+                    opt_args: opt_args.clone(),
                 })
             }
 
             Term::Filter {
                 source,
                 predicate,
-                optargs,
+                opt_args,
             } => {
                 if let Term::Expr(e) = predicate.as_ref() {
                     Ok(PlanNode::Filter {
                         source: Box::new(self.plan(source)?),
                         predicate: e.clone(),
-                        optargs: optargs.clone(),
+                        opt_args: opt_args.clone(),
                     })
                 } else {
                     Err(PlanError::InvalidPredicate(predicate.as_ref().clone()))
@@ -158,16 +158,16 @@ impl Planner {
             Term::Insert {
                 table,
                 documents,
-                optargs,
+                opt_args,
             } => Ok(PlanNode::Insert {
                 table: Box::new(self.plan(table)?),
                 documents: documents.clone(),
-                optargs: optargs.clone(),
+                opt_args: opt_args.clone(),
             }),
 
-            Term::Delete { source, optargs } => Ok(PlanNode::Delete {
+            Term::Delete { source, opt_args } => Ok(PlanNode::Delete {
                 source: Box::new(self.plan(source)?),
-                optargs: optargs.clone(),
+                opt_args: opt_args.clone(),
             }),
 
             Term::Datum(_) => Err(PlanError::UnsupportedTerm(term.clone())),
@@ -176,7 +176,7 @@ impl Planner {
 
     pub fn simplify_expr(expr: Expr) -> Expr {
         match expr {
-            Expr::Constant(_) | Expr::Column(_) => expr,
+            Expr::Constant(_) | Expr::Field { .. } => expr,
             Expr::BinaryOp { op, left, right } => {
                 let left_simplified = Self::simplify_expr(*left);
                 let right_simplified = Self::simplify_expr(*right);
@@ -224,7 +224,7 @@ impl Planner {
             PlanNode::Filter {
                 source,
                 predicate,
-                optargs,
+                opt_args,
             } => {
                 let optimized_source = self.optimize(*source);
                 let simplified_pred = Self::simplify_expr(predicate);
@@ -235,7 +235,7 @@ impl Planner {
                     _ => PlanNode::Filter {
                         source: Box::new(optimized_source),
                         predicate: simplified_pred,
-                        optargs,
+                        opt_args,
                     },
                 }
             }
@@ -243,28 +243,28 @@ impl Planner {
             PlanNode::Insert {
                 table,
                 documents,
-                optargs,
+                opt_args,
             } => PlanNode::Insert {
                 table: Box::new(self.optimize(*table)),
                 documents,
-                optargs,
+                opt_args,
             },
 
-            PlanNode::Delete { source, optargs } => PlanNode::Delete {
+            PlanNode::Delete { source, opt_args } => PlanNode::Delete {
                 source: Box::new(self.optimize(*source)),
-                optargs,
+                opt_args,
             },
 
             PlanNode::GetByKey {
                 db,
                 table,
                 key,
-                optargs,
+                opt_args,
             } => PlanNode::GetByKey {
                 db,
                 table,
                 key,
-                optargs,
+                opt_args,
             },
 
             PlanNode::Eval { expr } => {

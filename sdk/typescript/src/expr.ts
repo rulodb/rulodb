@@ -1,12 +1,8 @@
-import { Term, TermBuilder, TermOptions, TermType } from './terms';
+import { TermBuilder, TermOptions, TermType } from './terms';
 
 export class ExprBuilder<T = Record<string, unknown>, V = unknown> extends TermBuilder<T> {
-  constructor(type: TermType, args: unknown[], optargs: TermOptions = {}) {
-    super(type, args, optargs);
-  }
-
-  build(): Term {
-    return [this.term[0], this.term[1]];
+  constructor(type: TermType, args: unknown[], optArgs: TermOptions = {}) {
+    super(type, args, optArgs);
   }
 
   protected getTerm(termType: TermType, value: V) {

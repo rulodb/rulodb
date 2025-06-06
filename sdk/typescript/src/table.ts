@@ -1,6 +1,10 @@
 import { ExprBuilder } from './expr';
 import { DeepGet, DeepKeys, Term, TermBuilder, TermOptions, TermType } from './terms';
 
+type FieldOptions = {
+  separator?: string;
+} & TermOptions;
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export class TableBuilder<T extends object = any> extends TermBuilder<T> {
   constructor(name: string, database: string | Term = 'default', options: TermOptions = {}) {
@@ -11,21 +15,24 @@ export class TableBuilder<T extends object = any> extends TermBuilder<T> {
     );
   }
 
-  insert(docs: T | T[], optargs: TermOptions = {}): TermBuilder<T> {
+  field<K extends DeepKeys<T> & string>(
+    field: K,
+    optArgs: FieldOptions = {}
+  ): ExprBuilder<T, DeepGet<T, K>> {
+    return new ExprBuilder<T, DeepGet<T, K>>(TermType.GetField, [field], optArgs);
+  }
+
+  insert(docs: T | T[], optArgs: TermOptions = {}): TermBuilder<T> {
     const docsArray = Array.isArray(docs) ? docs : [docs];
-    return new TermBuilder<T>(TermType.Insert, [this.build(), docsArray], optargs);
+    return new TermBuilder<T>(TermType.Insert, [this.build(), docsArray], optArgs);
   }
 
-  row<K extends DeepKeys<T> & string>(field: K): ExprBuilder<T, DeepGet<T, K>> {
-    return new ExprBuilder<T, DeepGet<T, K>>(TermType.GetField, [field]);
+  get(id: string, optArgs: TermOptions = {}): TermBuilder<T> {
+    return new TermBuilder<T>(TermType.Get, [this.build(), id], optArgs);
   }
 
-  get(id: string, optargs: TermOptions = {}): TermBuilder<T> {
-    return new TermBuilder<T>(TermType.Get, [this.build(), id], optargs);
-  }
-
-  filter(predicate: ExprBuilder<Partial<T>>, optargs: TermOptions = {}): TermBuilder<T> {
-    return new TermBuilder<T>(TermType.Filter, [this.build(), predicate.build()], optargs);
+  filter(predicate: ExprBuilder<Partial<T>>, optArgs: TermOptions = {}): TermBuilder<T> {
+    return new TermBuilder<T>(TermType.Filter, [this.build(), predicate.build()], optArgs);
   }
 }
 

@@ -5,11 +5,7 @@ import { TermType } from '../src/terms';
 describe('TableBuilder', () => {
   it('should build a table term', () => {
     const builder = new TableBuilder('users');
-    expect(builder.build()).toEqual([
-      TermType.Table,
-      [[TermType.Database, ['default']], 'users'],
-      {}
-    ]);
+    expect(builder.build()).toEqual([TermType.Table, [[TermType.Database, ['default']], 'users']]);
   });
 
   it('should build an insert term', () => {
@@ -18,16 +14,22 @@ describe('TableBuilder', () => {
     const insert = builder.insert(docs);
     expect(insert.build()).toEqual([
       TermType.Insert,
-      [[TermType.Table, [[TermType.Database, ['default']], 'users'], {}], docs],
-      {}
+      [[TermType.Table, [[TermType.Database, ['default']], 'users']], docs]
     ]);
   });
 
-  it('should build a row expr', () => {
+  it('should build a field expr', () => {
     const builder = new TableBuilder('users');
-    const rowExpr = builder.row('age');
-    expect(rowExpr).toBeInstanceOf(ExprBuilder);
-    expect(rowExpr.build()).toEqual([TermType.GetField, ['age']]);
+    const fieldExpr = builder.field('age');
+    expect(fieldExpr).toBeInstanceOf(ExprBuilder);
+    expect(fieldExpr.build()).toEqual([TermType.GetField, ['age']]);
+  });
+
+  it('should build a field expr with optArgs', () => {
+    const builder = new TableBuilder('users');
+    const fieldExpr = builder.field('age', { separator: ',' });
+    expect(fieldExpr).toBeInstanceOf(ExprBuilder);
+    expect(fieldExpr.build()).toEqual([TermType.GetField, ['age'], { separator: ',' }]);
   });
 
   it('should build a get term', () => {
@@ -35,19 +37,18 @@ describe('TableBuilder', () => {
     const get = builder.get('id123');
     expect(get.build()).toEqual([
       TermType.Get,
-      [[TermType.Table, [[TermType.Database, ['default']], 'users'], {}], 'id123'],
-      {}
+      [[TermType.Table, [[TermType.Database, ['default']], 'users']], 'id123']
     ]);
   });
 
   it('should build a filter term', () => {
     const builder = new TableBuilder('users');
-    const predicate = builder.row('age').ge(21);
+    const predicate = builder.field('age').ge(21);
     const filter = builder.filter(predicate);
     expect(filter.build()).toEqual([
       TermType.Filter,
       [
-        [TermType.Table, [[TermType.Database, ['default']], 'users'], {}],
+        [TermType.Table, [[TermType.Database, ['default']], 'users']],
         [
           TermType.Ge,
           [
@@ -55,14 +56,13 @@ describe('TableBuilder', () => {
             [TermType.Datum, [21]]
           ]
         ]
-      ],
-      {}
+      ]
     ]);
   });
 
   it('table() factory should return TableBuilder', () => {
     const t = table('users');
     expect(t).toBeInstanceOf(TableBuilder);
-    expect(t.build()).toEqual([TermType.Table, [[TermType.Database, ['default']], 'users'], {}]);
+    expect(t.build()).toEqual([TermType.Table, [[TermType.Database, ['default']], 'users']]);
   });
 });

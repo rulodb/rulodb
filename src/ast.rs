@@ -75,7 +75,10 @@ pub enum UnOp {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Expr {
     Constant(Datum),
-    Column(String),
+    Field {
+        name: String,
+        separator: Option<String>,
+    },
     BinaryOp {
         op: BinOp,
         left: Box<Expr>,
@@ -91,7 +94,10 @@ impl std::fmt::Display for Expr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Constant(d) => write!(f, "{d}"),
-            Self::Column(col) => write!(f, ".{col}"),
+            Self::Field { name, separator } => {
+                let separator = separator.clone().unwrap_or_else(|| ".".to_string());
+                write!(f, "{separator}{name}")
+            }
             Self::BinaryOp { op, left, right } => {
                 let op_str = match op {
                     BinOp::Eq => "==",
@@ -247,24 +253,24 @@ pub enum Term {
         table: Box<Term>,
         key: Datum,
         #[serde(default)]
-        optargs: OptArgs,
+        opt_args: OptArgs,
     },
     Filter {
         source: Box<Term>,
         predicate: Box<Term>,
         #[serde(default)]
-        optargs: OptArgs,
+        opt_args: OptArgs,
     },
     Delete {
         source: Box<Term>,
         #[serde(default)]
-        optargs: OptArgs,
+        opt_args: OptArgs,
     },
     Insert {
         table: Box<Term>,
         documents: Vec<Datum>,
         #[serde(default)]
-        optargs: OptArgs,
+        opt_args: OptArgs,
     },
 }
 
@@ -318,7 +324,13 @@ mod tests {
 
         let cases = vec![
             (Expr::Constant(Datum::String("hello".to_string())), "hello"),
-            (Expr::Column("id".to_string()), ".id"),
+            (
+                Expr::Field {
+                    name: "id".to_string(),
+                    separator: Some(".".to_string()),
+                },
+                ".id",
+            ),
             (
                 make_binop_expr(BinOp::Eq, Datum::Integer(1), Datum::Integer(2)),
                 "(1 == 2)",

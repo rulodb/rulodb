@@ -84,12 +84,12 @@ export type QueryResponse<T = Document> = {
 export class TermBuilder<T = unknown> {
   protected term: Term;
 
-  constructor(type: TermType, args: TermArgs, optargs: TermOptions = {}) {
-    this.term = [type, args, optargs];
+  constructor(type: TermType, args: TermArgs, optArgs: TermOptions = {}) {
+    this.term = [type, args, optArgs];
   }
 
   build(): Term {
-    return this.term;
+    return Object.keys(this.term[2] ?? {}).length === 0 ? [this.term[0], this.term[1]] : this.term;
   }
 
   debug(): this {
