@@ -27,14 +27,17 @@ export function db(...args: ConstructorParameters<typeof DatabaseBuilder>): Data
   return new DatabaseBuilder(...args);
 }
 
-export function listDatabases(optArgs: TermOptions = {}): TermBuilder<string[]> {
-  return new TermBuilder<string[]>(TermType.DatabaseList, [], optArgs);
+export function listDatabases<T = string>(optArgs: TermOptions = {}): TermBuilder<T> {
+  return new TermBuilder<T>(TermType.DatabaseList, [], optArgs);
 }
 
-export function createDatabase(name: string, optArgs: TermOptions = {}): TermBuilder<string> {
-  return new TermBuilder<string>(TermType.DatabaseCreate, [name], optArgs);
+export function createDatabase<T = string>(
+  name: string,
+  optArgs: TermOptions = {}
+): TermBuilder<T> {
+  return new TermBuilder<T>(TermType.DatabaseCreate, [name], optArgs);
 }
 
-export function dropDatabase(name: string, optArgs: TermOptions = {}): TermBuilder<string> {
-  return new TermBuilder<string>(TermType.DatabaseDrop, [name], optArgs);
+export function dropDatabase<T = string>(name: string, optArgs: TermOptions = {}): TermBuilder<T> {
+  return new TermBuilder<T>(TermType.DatabaseDrop, [name], optArgs);
 }

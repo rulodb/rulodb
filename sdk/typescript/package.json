@@ -1,7 +1,7 @@
 {
-  "name": "rulodb",
+  "name": "@rulodb/rulodb",
   "description": "Typescript SDK for Rulodb",
-  "version": "0.1.0",
+  "version": "0.0.1",
   "type": "module",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
@@ -10,13 +10,13 @@
     "name": "Gábor Boros",
     "email": "gabor.brs@gmail.com"
   },
-  "homepage": "https://github.com/gabor-boros/rulodb",
+  "homepage": "https://github.com/rulodb/rulodb",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/gabor-boros/rulodb"
+    "url": "git+https://github.com/rulodb/rulodb"
   },
   "bugs": {
-    "url": "https://github.com/gabor-boros/rulodb/issues"
+    "url": "https://github.com/rulodb/rulodb/issues"
   },
   "keywords": [
     "database",
@@ -53,6 +53,7 @@
     "watch": "rollup -c -w",
     "format": "prettier --write src __tests__"
   },
+  "dependencies": {},
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.1",
     "@eslint/js": "^9.28.0",
@@ -61,20 +62,17 @@
     "@rollup/plugin-terser": "^0.4.4",
     "@rollup/plugin-typescript": "^12.1.2",
     "@types/jest": "^29.5.14",
-    "@types/node": "^22.15.29",
-    "@typescript-eslint/eslint-plugin": "^8.33.0",
-    "@typescript-eslint/parser": "^8.33.0",
+    "@types/node": "^22.15.30",
+    "@typescript-eslint/eslint-plugin": "^8.33.1",
+    "@typescript-eslint/parser": "^8.33.1",
     "eslint": "^9.28.0",
     "eslint-plugin-simple-import-sort": "^12.1.1",
     "jest": "^29.7.0",
     "prettier": "^3.5.3",
     "rimraf": "^6.0.1",
-    "rollup": "^4.41.1",
+    "rollup": "^4.41.2",
     "ts-jest": "^29.3.4",
     "tslib": "^2.8.1",
     "typescript": "^5.8.3"
-  },
-  "optionalDependencies": {
-    "@rollup/rollup-linux-x64-gnu": "^4.41.1"
   }
 }
