@@ -1,7 +1,19 @@
-import { expr, ExprBuilder } from '../src/expr';
+import { expr, ExprBuilder, row } from '../src/expr';
 import { TermType } from '../src/terms';
 
 describe('ExprBuilder', () => {
+  it('should build a row expr', () => {
+    const rowExpr = row('age');
+    expect(rowExpr).toBeInstanceOf(ExprBuilder);
+    expect(rowExpr.build()).toEqual([TermType.GetField, ['age']]);
+  });
+
+  it('should build a row expr with optArgs', () => {
+    const rowExpr = row('age', { separator: ',' });
+    expect(rowExpr).toBeInstanceOf(ExprBuilder);
+    expect(rowExpr.build()).toEqual([TermType.GetField, ['age'], { separator: ',' }]);
+  });
+
   it('should build a basic expr term', () => {
     const builder = new ExprBuilder(TermType.Expr, [{ foo: 1 }]);
     expect(builder.build()).toEqual([TermType.Expr, [{ foo: 1 }]]);

@@ -18,18 +18,18 @@ describe('TableBuilder', () => {
     ]);
   });
 
-  it('should build a field expr', () => {
+  it('should build a row expr on table', () => {
     const builder = new TableBuilder('users');
-    const fieldExpr = builder.field('age');
-    expect(fieldExpr).toBeInstanceOf(ExprBuilder);
-    expect(fieldExpr.build()).toEqual([TermType.GetField, ['age']]);
+    const rowExpr = builder.row('age');
+    expect(rowExpr).toBeInstanceOf(ExprBuilder);
+    expect(rowExpr.build()).toEqual([TermType.GetField, ['age']]);
   });
 
-  it('should build a field expr with optArgs', () => {
+  it('should build a row expr on table with optArgs', () => {
     const builder = new TableBuilder('users');
-    const fieldExpr = builder.field('age', { separator: ',' });
-    expect(fieldExpr).toBeInstanceOf(ExprBuilder);
-    expect(fieldExpr.build()).toEqual([TermType.GetField, ['age'], { separator: ',' }]);
+    const rowExpr = builder.row('age', { separator: ',' });
+    expect(rowExpr).toBeInstanceOf(ExprBuilder);
+    expect(rowExpr.build()).toEqual([TermType.GetField, ['age'], { separator: ',' }]);
   });
 
   it('should build a get term', () => {
@@ -43,7 +43,7 @@ describe('TableBuilder', () => {
 
   it('should build a filter term', () => {
     const builder = new TableBuilder('users');
-    const predicate = builder.field('age').ge(21);
+    const predicate = builder.row('age').ge(21);
     const filter = builder.filter(predicate);
     expect(filter.build()).toEqual([
       TermType.Filter,

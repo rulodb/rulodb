@@ -1,4 +1,8 @@
-import { TermBuilder, TermOptions, TermType } from './terms';
+import { DeepGet, DeepKeys, TermBuilder, TermOptions, TermType } from './terms';
+
+export type FieldOptions = {
+  separator?: string;
+} & TermOptions;
 
 export class ExprBuilder<T = Record<string, unknown>, V = unknown> extends TermBuilder<T> {
   constructor(type: TermType, args: unknown[], optArgs: TermOptions = {}) {
@@ -79,4 +83,12 @@ export function expr<T = Record<string, unknown>, V = unknown>(value: V): ExprBu
     return value;
   }
   return new ExprBuilder<T>(TermType.Expr, [value], {});
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function row<T extends object = any, K extends DeepKeys<T> & string = any>(
+  field: K,
+  optArgs: FieldOptions = {}
+): ExprBuilder<T, DeepGet<T, K>> {
+  return new ExprBuilder<T, DeepGet<T, K>>(TermType.GetField, [field], optArgs);
 }
