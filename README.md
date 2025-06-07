@@ -4,7 +4,19 @@
 
 <br />
 <div align="center">
-  <img style="width:100%;" src="./.github/assets/github-header.png" alt="GitHub Header for RuloDB" />
+    <img style="width:100%;" src="./.github/assets/github-header.png" alt="GitHub Header for RuloDB" />
+
+  <p align="center">
+    NoSQL database with a ReQL-like query language.
+    <br />
+    <a href="https://rulodb.mintlify.app"><strong>Explore the docs</strong></a>
+    <br />
+    <a href="https://matrix.to/#/#rulodb:matrix.org">Join us on Matrix</a>
+    ·
+    <a href="https://github.com/rulodb/rulodb/issues/new?assignees=&labels=bug%2Ctriage-needed&projects=&template=BUG-REPORT.yml">Bug report</a>
+    ·
+    <a href="https://github.com/rulodb/rulodb/issues/new?assignees=&labels=question%2Cenhancement%2Ctriage-needed&projects=&template=FEATURE-REQUEST.yml">Feature request</a>
+  </p>
 </div>
 
 # RuloDB

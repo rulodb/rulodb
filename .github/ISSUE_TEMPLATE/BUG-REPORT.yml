@@ -1,0 +1,59 @@
+name: "Bug Report"
+description: Create a new issue for a bug.
+labels:
+  - bug
+  - triage-needed
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: "Description"
+      description: Please enter an explicit description of your issue. Do not include any sensitive information.
+      placeholder: Short and explicit description of the issue...
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: "Reproduction steps"
+      description: Please enter the explicit steps to reproduce the issue.
+      value: |
+        1. Connecting to RuloDB version X.Y.Z
+        2. Executing  '....'
+        3. See error
+      render: bash
+    validations:
+      required: true
+  - type: textarea
+    id: screenshot
+    attributes:
+      label: "Screenshots"
+      description: |
+        If applicable, add screenshots to help explain your problem. Do not
+        include any sensitive information.
+      value: |
+        ![DESCRIPTION](LINK.png)
+      render: bash
+    validations:
+      required: false
+  - type: textarea
+    id: logs
+    attributes:
+      label: "Logs"
+      description: |
+        Please copy and paste any relevant log output. This will be
+        automatically formatted into code, so no need for backticks.
+      render: bash
+    validations:
+      required: false
+  - type: dropdown
+    id: sdks
+    attributes:
+      label: "SDKs"
+      description: What SDKs are you seeing the problem with?
+      multiple: true
+      options:
+        - TypeScript
+        - Not Applicable
+    validations:
+      required: true

@@ -1,0 +1,23 @@
+name: "Feature Request"
+description: Create a new issue for a new feature request.
+labels:
+  - question
+  - enhancement
+  - triage-needed
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: "Summary"
+      description: Provide explanation of the feature.
+      placeholder: Describe your feature request as precise as possible...
+    validations:
+      required: true
+  - type: textarea
+    id: drawbacks
+    attributes:
+      label: "Drawbacks"
+      description: What are the drawbacks/impacts of your feature request?
+      placeholder: Identify the drawbacks and impacts while being neutral on your feature request...
+    validations:
+      required: true
