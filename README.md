@@ -9,10 +9,10 @@
   <p align="center">
     NoSQL database with a ReQL-like query language.
     <br />
-    <a href="https://rulodb.mintlify.app"><strong>Explore the docs</strong></a>
-    <br />
-    <a href="https://matrix.to/#/#rulodb:matrix.org">Join us on Matrix</a>
+    <a href="https://rulodb.io"><strong>Explore the docs</strong></a>
     ·
+    <a href="https://discord.gg/RzeAMwSM5R"><strong>Join us on Discord</strong></a>
+    <br />
     <a href="https://github.com/rulodb/rulodb/issues/new?assignees=&labels=bug%2Ctriage-needed&projects=&template=BUG-REPORT.yml">Bug report</a>
     ·
     <a href="https://github.com/rulodb/rulodb/issues/new?assignees=&labels=question%2Cenhancement%2Ctriage-needed&projects=&template=FEATURE-REQUEST.yml">Feature request</a>
