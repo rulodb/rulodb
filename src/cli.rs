@@ -35,8 +35,8 @@ pub struct EngineConfig {
     /// Path to the database directory.
     #[arg(long, short, env = "RULODB_DATA_DIR", default_value = "./rulodb_data")]
     pub data_dir: String,
-    /// Size of the write buffer in megabytes.
-    #[arg(long, env = "RULODB_WRITE_BUFFER_SIZE", default_value_t = 128)]
+    /// Size of the write buffer.
+    #[arg(long, env = "RULODB_WRITE_BUFFER_SIZE", default_value_t = 134217728)]
     pub write_buffer_size: usize,
     /// Maximum number of write buffers.
     #[arg(long, env = "RULODB_MAX_WRITE_BUFFERS", default_value_t = 4)]
@@ -59,8 +59,36 @@ pub struct EngineConfig {
     #[arg(long, env = "RULODB_LEVEL0_STOP_WRITES", default_value_t = 24)]
     pub level0_stop_writes: i32,
     /// Number of background threads for flush and compaction.
-    #[arg(long, env = "RULODB_MAX_BACKGROUND_JOBS", default_value_t = num_cpus::get() as i32)]
+    #[arg(long, env = "RULODB_PARALLELISM", default_value_t = num_cpus::get() as i32)]
     pub parallelism: i32,
+    /// Size of the block cache.
+    #[arg(long, env = "RULODB_BLOCK_CACHE_SIZE", default_value_t = 268435456)]
+    pub block_cache_size: usize,
+    /// Maximum number of open files.
+    #[arg(long, env = "RULODB_MAX_OPEN_FILES", default_value_t = 1000)]
+    pub max_open_files: i32,
+    /// Use direct I/O for flush and compaction operations.
+    #[arg(long, env = "RULODB_USE_DIRECT_IO", default_value_t = true)]
+    pub use_direct_io_for_flush_and_compaction: bool,
+    /// Use direct reads for better I/O performance.
+    #[arg(long, env = "RULODB_USE_DIRECT_READS", default_value_t = false)]
+    pub use_direct_reads: bool,
+    /// Number of bytes to sync at a time.
+    #[arg(long, env = "RULODB_BYTES_PER_SYNC", default_value_t = 1048576)]
+    pub bytes_per_sync: u64,
+    /// Number of WAL bytes to sync at a time.
+    #[arg(long, env = "RULODB_WAL_BYTES_PER_SYNC", default_value_t = 1048576)]
+    pub wal_bytes_per_sync: u64,
+    /// Target file size base in bytes.
+    #[arg(long, env = "RULODB_TARGET_FILE_SIZE_BASE", default_value_t = 67108864)]
+    pub target_file_size_base: u64,
+    /// Maximum bytes for level base.
+    #[arg(
+        long,
+        env = "RULODB_MAX_BYTES_FOR_LEVEL_BASE",
+        default_value_t = 268435456
+    )]
+    pub max_bytes_for_level_base: u64,
 }
 
 #[derive(Debug, Clone, Args)]

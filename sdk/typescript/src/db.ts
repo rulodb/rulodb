@@ -6,20 +6,23 @@ export class DatabaseBuilder extends TermBuilder {
     super(TermType.Database, [name], optArgs);
   }
 
-  table<T extends object = Document>(name: string, options: TermOptions = {}): TableBuilder<T> {
+  table<T extends object = Record<string, unknown>>(
+    name: string,
+    options: TermOptions = {}
+  ): TableBuilder<T> {
     return new TableBuilder<T>(name, this.build(), options);
   }
 
-  listTables<T = string>(optArgs: TermOptions = {}): TermBuilder<T> {
-    return new TermBuilder<T>(TermType.TableList, [this.build()], optArgs);
+  listTables(optArgs: TermOptions = {}): TermBuilder<string[]> {
+    return new TermBuilder<string[]>(TermType.TableList, [this.build()], optArgs);
   }
 
-  createTable<T = string>(name: string, optArgs: TermOptions = {}): TermBuilder<T> {
-    return new TermBuilder<T>(TermType.TableCreate, [this.build(), name], optArgs);
+  createTable(name: string, optArgs: TermOptions = {}): TermBuilder<string> {
+    return new TermBuilder<string>(TermType.TableCreate, [this.build(), name], optArgs);
   }
 
-  dropTable<T = string>(name: string, optArgs: TermOptions = {}): TermBuilder<T> {
-    return new TermBuilder<T>(TermType.TableDrop, [this.build(), name], optArgs);
+  dropTable(name: string, optArgs: TermOptions = {}): TermBuilder<string> {
+    return new TermBuilder<string>(TermType.TableDrop, [this.build(), name], optArgs);
   }
 }
 
@@ -27,17 +30,14 @@ export function db(...args: ConstructorParameters<typeof DatabaseBuilder>): Data
   return new DatabaseBuilder(...args);
 }
 
-export function listDatabases<T = string>(optArgs: TermOptions = {}): TermBuilder<T> {
-  return new TermBuilder<T>(TermType.DatabaseList, [], optArgs);
+export function listDatabases(optArgs: TermOptions = {}): TermBuilder<string[]> {
+  return new TermBuilder<string[]>(TermType.DatabaseList, [], optArgs);
 }
 
-export function createDatabase<T = string>(
-  name: string,
-  optArgs: TermOptions = {}
-): TermBuilder<T> {
-  return new TermBuilder<T>(TermType.DatabaseCreate, [name], optArgs);
+export function createDatabase(name: string, optArgs: TermOptions = {}): TermBuilder<string> {
+  return new TermBuilder<string>(TermType.DatabaseCreate, [name], optArgs);
 }
 
-export function dropDatabase<T = string>(name: string, optArgs: TermOptions = {}): TermBuilder<T> {
-  return new TermBuilder<T>(TermType.DatabaseDrop, [name], optArgs);
+export function dropDatabase(name: string, optArgs: TermOptions = {}): TermBuilder<string> {
+  return new TermBuilder<string>(TermType.DatabaseDrop, [name], optArgs);
 }

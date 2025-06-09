@@ -1,4 +1,10 @@
-import { MetaField, QueryResponse, TermBuilder, TermOptions, TermType } from '../src/terms';
+import { Client } from '../src/client';
+import { QueryResult } from '../src/result';
+import { ExecutionResult, MetaField, TermBuilder, TermOptions, TermType } from '../src/terms';
+
+interface MockClient extends Pick<Client, 'send'> {
+  send: jest.Mock;
+}
 
 describe('TermBuilder', () => {
   it('should build a term with correct structure', () => {
@@ -17,23 +23,38 @@ describe('TermBuilder', () => {
     expect(builder.debug()).toBe(builder);
   });
 
-  it('should call client.send with built term in run()', async () => {
-    const builder = new TermBuilder(TermType.Table, ['users']);
-    const mockResponse: QueryResponse = {
-      result: null,
-      explanation: '',
+  it('should return QueryResult for streaming operations like Table', async () => {
+    const builder = new TermBuilder<{ name: string }>(TermType.Table, ['users']);
+    const client: MockClient = { send: jest.fn() };
+    const result = await builder.run(client as unknown as Client);
+    expect(result).toBeInstanceOf(QueryResult);
+    expect(result.isStreaming).toBe(true);
+    expect(result).toHaveProperty('toArray');
+    expect(result).toHaveProperty('close');
+  });
+
+  it('should execute immediately for non-streaming operations', async () => {
+    const builder = new TermBuilder<Array<{ id: string; name: string }>>(TermType.Insert, [
+      ['table'],
+      [{ name: 'test' }]
+    ]);
+    const mockResponse: ExecutionResult<Array<{ id: string; name: string }>> = {
+      result: [{ id: '123', name: 'test' }],
       stats: {
         read_count: 0,
-        inserted_count: 0,
+        inserted_count: 1,
+        updated_count: 0,
         deleted_count: 0,
         error_count: 0,
-        duration_ms: 0
+        duration_ms: 10
       }
     };
-    const client = { send: jest.fn().mockResolvedValue(mockResponse) };
-    const result = await builder.run(client);
-    expect(client.send).toHaveBeenCalledWith([TermType.Table, ['users']]);
-    expect(result).toBe(mockResponse);
+    const client: MockClient = { send: jest.fn().mockResolvedValue(mockResponse) };
+    const result = await builder.run(client as unknown as Client);
+    expect(client.send).toHaveBeenCalledWith([TermType.Insert, [['table'], [{ name: 'test' }]]]);
+    expect(result).toBeInstanceOf(QueryResult);
+    expect(result.isImmediate).toBe(true);
+    expect(result.result).toEqual([{ id: '123', name: 'test' }]);
   });
 });
 

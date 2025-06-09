@@ -1,3 +1,7 @@
+import { Client } from './client';
+import { Cursor } from './cursor';
+import { createQueryResult, QueryResult } from './result';
+
 export type Join<K, P> = K extends string | number
   ? P extends string | number
     ? `${K}.${P}`
@@ -69,16 +73,20 @@ export type TermArgs = Partial<Array<unknown>>;
 
 export type Term = [number, TermArgs, TermOptions] | [number, TermArgs];
 
-export type QueryResponse<T = Document> = {
-  result: T | T[] | null;
-  explanation: string;
-  stats: {
-    read_count: number;
-    inserted_count: number;
-    deleted_count: number;
-    error_count: number;
-    duration_ms: number;
-  };
+export type QueryResponse<T = Document> = T | T[] | null;
+
+export type ExecutionStats = {
+  read_count: number;
+  inserted_count: number;
+  updated_count: number;
+  deleted_count: number;
+  error_count: number;
+  duration_ms: number;
+};
+
+export type ExecutionResult<T = unknown> = {
+  result: T;
+  stats: ExecutionStats;
 };
 
 export class TermBuilder<T = unknown> {
@@ -97,7 +105,20 @@ export class TermBuilder<T = unknown> {
     return this;
   }
 
-  async run(client: { send(query: Term): Promise<QueryResponse<T>> }) {
-    return await client.send(this.build());
+  async run(client: Client, options: { batchSize?: number } = {}): Promise<QueryResult<T>> {
+    const query = this.build();
+    const [termType] = query;
+
+    // Operations that return cursors (streaming/iterable results)
+    const streamingOperations = [TermType.Table, TermType.Filter];
+
+    if (streamingOperations.includes(termType)) {
+      const cursor = new Cursor<T>(client, query, options);
+      return createQueryResult(cursor);
+    }
+
+    // All other operations execute immediately and return results
+    const response = await client.send<Term, ExecutionResult<T>>(query);
+    return createQueryResult(response);
   }
 }

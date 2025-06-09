@@ -4,7 +4,7 @@
 
 <br />
 <div align="center">
-    <img style="width:100%;" src="./.github/assets/github-header.png" alt="GitHub Header for RuloDB" />
+  <img style="width:100%;" src="./.github/assets/github-header.png" alt="GitHub Header for RuloDB" />
 
   <p align="center">
     NoSQL database with a ReQL-like query language.

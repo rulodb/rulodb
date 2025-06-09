@@ -1,36 +1,35 @@
-use crate::ast::Datum;
-use crate::evaluator::{EvalStats, Evaluator};
-use crate::parser::Parser;
-use crate::planner::Planner;
-use crate::storage::StorageBackend;
 use byteorder::{BigEndian, WriteBytesExt};
+use log::{debug, error, info};
 use rmpv::Value;
+use rulodb::Datum;
+use rulodb::Evaluator;
+use rulodb::Parser;
+use rulodb::Planner;
+use rulodb::StorageBackend;
 use rust_decimal::prelude::ToPrimitive;
 use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::net::{TcpListener, TcpStream};
-use tokio::sync::Mutex;
-
 pub async fn start_server(
-    db: Arc<Mutex<Box<dyn StorageBackend + Send + Sync>>>,
+    db: Arc<dyn StorageBackend + Send + Sync>,
     address: &str,
 ) -> anyhow::Result<()> {
     let listener = TcpListener::bind(address).await?;
-    println!("RuloDB server listening on {address}");
+    info!("server listening on {address}");
 
     loop {
         let (stream, _) = listener.accept().await?;
         let db = db.clone();
         tokio::spawn(async move {
             if let Err(e) = handle_client(db, stream).await {
-                eprintln!("Client error: {e}");
+                log::error!("client error: {e}");
             }
         });
     }
 }
 
 async fn handle_client(
-    db: Arc<Mutex<Box<dyn StorageBackend + Send + Sync>>>,
+    db: Arc<dyn StorageBackend + Send + Sync>,
     stream: TcpStream,
 ) -> anyhow::Result<()> {
     let peer = stream.peer_addr()?;
@@ -44,7 +43,6 @@ async fn handle_client(
         }
         let msg_len = u32::from_be_bytes(len_buf) as usize;
 
-        // Read the message payload
         let mut buffer = vec![0u8; msg_len];
         if reader.read_exact(&mut buffer).await.is_err() {
             break;
@@ -53,7 +51,7 @@ async fn handle_client(
         let response = process_msgpack_line(db.clone(), &buffer)
             .await
             .unwrap_or_else(|err| {
-                eprintln!("Failed to process line from {peer}: {err}");
+                error!("failed to process line from {peer}: {err}");
                 Value::Map(vec![(Value::from("error"), Value::from(err.to_string()))])
             });
 
@@ -71,59 +69,23 @@ async fn handle_client(
 }
 
 async fn process_msgpack_line(
-    db: Arc<Mutex<Box<dyn StorageBackend + Send + Sync>>>,
+    db: Arc<dyn StorageBackend + Send + Sync>,
     line: &[u8],
 ) -> anyhow::Result<Value> {
     let value: Value = rmpv::decode::read_value(&mut &*line)?;
     let term = Parser::new().parse(&value)?;
 
-    let planner = Planner::new();
+    let mut planner = Planner::new();
     let plan = planner.plan(&term)?;
     let plan = planner.optimize(plan);
     let explanation = planner.explain(&plan, 0);
 
-    let mut db = db.lock().await;
-    let mut evaluator = Evaluator::new(&mut db);
+    debug!("{explanation}");
+
+    let mut evaluator = Evaluator::new(db);
     let result = evaluator.eval(&plan).await?;
 
-    drop(db); // Release the lock before converting to MsgPack
-
-    Ok(Value::Map(vec![
-        (Value::from("result"), datum_to_rmpv(result.result)),
-        (
-            Value::from("stats"),
-            datum_to_rmpv(stats_to_datum(&result.stats)),
-        ),
-        (
-            Value::from("explanation"),
-            Value::String(explanation.into()),
-        ),
-    ]))
-}
-
-fn stats_to_datum(stats: &EvalStats) -> Datum {
-    Datum::Object(
-        [
-            (
-                "read_count".to_string(),
-                Datum::Integer(i64::try_from(stats.read_count).unwrap()),
-            ),
-            (
-                "inserted_count".to_string(),
-                Datum::Integer(i64::try_from(stats.inserted_count).unwrap()),
-            ),
-            (
-                "deleted_count".to_string(),
-                Datum::Integer(i64::try_from(stats.deleted_count).unwrap()),
-            ),
-            (
-                "error_count".to_string(),
-                Datum::Integer(i64::try_from(stats.error_count).unwrap()),
-            ),
-        ]
-        .into_iter()
-        .collect(),
-    )
+    Ok(datum_to_rmpv(result.result))
 }
 
 fn datum_to_rmpv(datum: Datum) -> Value {

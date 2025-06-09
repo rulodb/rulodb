@@ -1,12 +1,14 @@
-use crate::ast::{BinOp, Datum, Expr, UnOp};
+use crate::ast::{BinOp, Datum, Expr, OptArgs, Term, UnOp};
 use crate::planner::PlanNode;
 use crate::storage::{
-    DEFAULT_DATABASE, Document, DocumentKey, Result as StorageResult, StorageBackend, StorageError,
+    DEFAULT_DATABASE, Document, Result as StorageResult, StorageBackend, StorageError,
 };
 use futures_util::StreamExt;
 use serde::Serialize;
 use std::collections::BTreeMap;
+use std::future::Future;
 use std::pin::Pin;
+use std::sync::Arc;
 use std::time::Instant;
 use tokio_stream::wrappers::ReceiverStream;
 use uuid::Uuid;
@@ -54,6 +56,8 @@ pub struct EvalStats {
     pub deleted_count: usize,
     pub error_count: usize,
     pub duration_ms: u128,
+    pub cache_hits: usize,
+    pub batch_operations: usize,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -62,13 +66,13 @@ pub struct EvalResult {
     pub stats: EvalStats,
 }
 
-pub struct Evaluator<'a> {
-    pub storage: &'a mut Box<dyn StorageBackend + Send + Sync>,
+pub struct Evaluator {
+    pub storage: Arc<dyn StorageBackend + Send + Sync>,
     pub stats: EvalStats,
 }
 
-impl<'a> Evaluator<'a> {
-    pub fn new(storage: &'a mut Box<dyn StorageBackend + Send + Sync>) -> Self {
+impl Evaluator {
+    pub fn new(storage: Arc<dyn StorageBackend + Send + Sync>) -> Self {
         Self {
             storage,
             stats: EvalStats::default(),
@@ -89,14 +93,20 @@ impl<'a> Evaluator<'a> {
     async fn evaluate_lazy(
         &self,
         plan: &PlanNode,
+        predicate: Option<Box<dyn Fn(Document) -> bool + Send + Sync>>,
     ) -> Option<Result<ReceiverStream<StorageResult<Document>>, EvalError>> {
-        match plan {
-            PlanNode::ScanTable { db, name } => {
+        match (plan, predicate) {
+            (PlanNode::ScanTable { db, name, opt_args }, predicate) => {
+                let db = use_database(db.as_ref());
+                let start_key = opt_start_key(opt_args);
+                let batch_size = opt_batch_size(opt_args);
+
                 let stream = self
                     .storage
-                    .scan_table(&use_database(db.as_ref()), name)
+                    .scan_table(&db, name, start_key, batch_size, predicate)
                     .await
                     .map_err(EvalError::from);
+
                 Some(stream)
             }
             _ => None,
@@ -110,13 +120,16 @@ impl<'a> Evaluator<'a> {
         Box::pin(async move {
             match plan {
                 PlanNode::Constant(d) => Ok(d.clone()),
-                PlanNode::Eval { expr } => self.eval_expr(expr, &BTreeMap::new()),
+                PlanNode::Eval { expr } => eval_expr(expr, &BTreeMap::new()),
                 PlanNode::SelectDatabase { name } => Ok(Datum::String(name.clone())),
                 PlanNode::CreateDatabase { name } => self.eval_create_database(name).await,
                 PlanNode::DropDatabase { name } => self.eval_drop_database(name).await,
                 PlanNode::ListDatabases => self.eval_list_databases().await,
-                PlanNode::ScanTable { db, name } => {
-                    self.eval_scan_table(&use_database(db.as_ref()), name).await
+                PlanNode::ScanTable { db, name, opt_args } => {
+                    let db = use_database(db.as_ref());
+                    let start_key = opt_start_key(opt_args);
+                    let batch_size = opt_batch_size(opt_args);
+                    self.eval_scan_table(&db, name, start_key, batch_size).await
                 }
                 PlanNode::CreateTable { db, name, .. } => {
                     self.eval_create_table(&use_database(db.as_ref()), name)
@@ -166,29 +179,45 @@ impl<'a> Evaluator<'a> {
             .list_databases()
             .await
             .map_err(EvalError::from)?;
-        let result: Vec<Datum> = databases
-            .into_iter()
-            .map(Datum::String)
-            .inspect(|_| self.stats.read_count += 1)
-            .collect();
+
+        self.stats.read_count += databases.len();
+        let result: Vec<Datum> = databases.into_iter().map(Datum::String).collect();
 
         Ok(Datum::Array(result))
     }
 
-    async fn eval_scan_table(&mut self, db: &str, name: &str) -> Result<Datum, EvalError> {
+    async fn eval_scan_table(
+        &mut self,
+        db: &str,
+        name: &str,
+        start_key: Option<String>,
+        batch_size: Option<usize>,
+    ) -> Result<Datum, EvalError> {
         let mut stream = self
             .storage
-            .scan_table(db, name)
+            .scan_table(db, name, start_key, batch_size, None)
             .await
             .map_err(EvalError::from)?;
 
         let mut result = Vec::new();
+        let mut batch_count = 0;
 
-        while let Some(doc) = stream.next().await {
-            if let Ok(doc) = doc {
-                self.stats.read_count += 1;
-                result.push(Datum::Object(doc));
+        while let Some(doc_result) = stream.next().await {
+            match doc_result {
+                Ok(doc) => {
+                    self.stats.read_count += 1;
+                    result.push(Datum::Object(doc));
+                    batch_count += 1;
+                }
+                Err(e) => {
+                    self.stats.error_count += 1;
+                    return Err(EvalError::StorageError(e));
+                }
             }
+        }
+
+        if batch_count > 0 {
+            self.stats.batch_operations += 1;
         }
 
         Ok(Datum::Array(result))
@@ -208,11 +237,9 @@ impl<'a> Evaluator<'a> {
 
     async fn eval_list_tables(&mut self, db: &str) -> Result<Datum, EvalError> {
         let tables = self.storage.list_tables(db).await?;
-        let result: Vec<Datum> = tables
-            .into_iter()
-            .map(Datum::String)
-            .inspect(|_| self.stats.read_count += 1)
-            .collect();
+
+        self.stats.read_count += tables.len();
+        let result: Vec<Datum> = tables.into_iter().map(Datum::String).collect();
 
         Ok(Datum::Array(result))
     }
@@ -223,7 +250,8 @@ impl<'a> Evaluator<'a> {
         };
 
         if let Some(doc) = self.storage.get(db, table, key).await? {
-            self.stats.read_count = 1;
+            self.stats.read_count += 1;
+            self.stats.cache_hits += 1; // Assume cache hit for single key lookups
             Ok(Datum::Object(doc))
         } else {
             Ok(Datum::Null)
@@ -237,25 +265,45 @@ impl<'a> Evaluator<'a> {
     ) -> Result<Datum, EvalError> {
         let mut result = Vec::new();
 
-        if let Some(Ok(mut stream)) = self.evaluate_lazy(source).await {
-            while let Some(doc) = stream.next().await {
-                if let Ok(doc) = doc {
-                    if matches!(self.eval_expr(predicate, &doc)?, Datum::Bool(true)) {
+        let predicate_clone = Arc::new(predicate.clone());
+        let lazy_predicate = {
+            let predicate = Arc::clone(&predicate_clone);
+            Box::new(move |doc: Document| {
+                eval_expr(&predicate, &doc).is_ok_and(|datum| matches!(datum, Datum::Bool(true)))
+            })
+        };
+
+        if let Some(Ok(mut stream)) = self.evaluate_lazy(source, Some(lazy_predicate)).await {
+            while let Some(doc_result) = stream.next().await {
+                match doc_result {
+                    Ok(doc) => {
+                        self.stats.read_count += 1;
                         result.push(Datum::Object(doc));
+                    }
+                    Err(e) => {
+                        self.stats.error_count += 1;
+                        return Err(EvalError::StorageError(e));
                     }
                 }
             }
         } else if let Datum::Array(rows) = self.evaluate(source).await? {
             for row in rows {
                 if let Datum::Object(doc) = &row {
-                    if matches!(self.eval_expr(predicate, doc)?, Datum::Bool(true)) {
-                        result.push(row);
+                    match eval_expr(&predicate_clone, doc) {
+                        Ok(Datum::Bool(true)) => {
+                            self.stats.read_count += 1;
+                            result.push(row);
+                        }
+                        Err(e) => {
+                            self.stats.error_count += 1;
+                            return Err(e);
+                        }
+                        _ => {} // Filter out non-matching rows
                     }
                 }
             }
         }
 
-        self.stats.read_count += result.len();
         Ok(Datum::Array(result))
     }
 
@@ -264,7 +312,7 @@ impl<'a> Evaluator<'a> {
         table: &PlanNode,
         documents: &[Datum],
     ) -> Result<Datum, EvalError> {
-        let PlanNode::ScanTable { db, name } = table else {
+        let PlanNode::ScanTable { db, name, .. } = table else {
             self.stats.error_count += 1;
             return Err(EvalError::InvalidInsertTarget);
         };
@@ -276,13 +324,13 @@ impl<'a> Evaluator<'a> {
         for d in documents {
             match d.clone() {
                 Datum::Object(mut obj) => {
-                    obj.insert(DocumentKey::Table.to_string(), Datum::String(name.clone()));
+                    obj.insert("table".to_string(), Datum::String(name.clone()));
 
-                    let key = if let Some(Datum::String(id)) = obj.get(DocumentKey::Id.as_str()) {
+                    let key = if let Some(Datum::String(id)) = obj.get("id") {
                         id.clone()
                     } else {
                         let id = Uuid::new_v4().to_string();
-                        obj.insert(DocumentKey::Id.to_string(), Datum::String(id.clone()));
+                        obj.insert("id".to_string(), Datum::String(id.clone()));
                         id
                     };
 
@@ -296,16 +344,23 @@ impl<'a> Evaluator<'a> {
         }
 
         if batch_docs.len() > 1 {
-            if self.storage.put_batch(db, name, &batch_docs).await.is_err() {
-                self.stats.error_count += batch_docs.len();
-            } else {
-                self.stats.inserted_count += batch_docs.len();
+            match self.storage.put_batch(db, name, &batch_docs).await {
+                Ok(()) => {
+                    self.stats.inserted_count += batch_docs.len();
+                    self.stats.batch_operations += 1;
+                }
+                Err(_) => {
+                    self.stats.error_count += batch_docs.len();
+                }
             }
         } else if let Some((key, obj)) = batch_docs.into_iter().next() {
-            if self.storage.put(db, name, &key, &obj).await.is_err() {
-                self.stats.error_count += 1;
-            } else {
-                self.stats.inserted_count += 1;
+            match self.storage.put(db, name, &key, &obj).await {
+                Ok(()) => {
+                    self.stats.inserted_count += 1;
+                }
+                Err(_) => {
+                    self.stats.error_count += 1;
+                }
             }
         }
 
@@ -318,17 +373,25 @@ impl<'a> Evaluator<'a> {
 
         let db = use_database(extract_db_from_plan(source));
 
-        if let Some(Ok(mut stream)) = self.evaluate_lazy(source).await {
-            while let Some(doc) = stream.next().await {
-                if let Ok(doc) = doc {
-                    let table = extract_document_key_value(&doc, &DocumentKey::Table)?;
-                    let key = extract_document_key_value(&doc, &DocumentKey::Id)?;
-
-                    if self.storage.delete(&db, &table, &key).await.is_ok() {
-                        deleted += 1;
-                    } else {
-                        errors += 1;
+        if let Some(Ok(mut stream)) = self.evaluate_lazy(source, None).await {
+            while let Some(doc_result) = stream.next().await {
+                match doc_result {
+                    Ok(doc) => {
+                        match (
+                            extract_document_key_value(&doc, "table"),
+                            extract_document_key_value(&doc, "id"),
+                        ) {
+                            (Ok(table), Ok(key)) => {
+                                if self.storage.delete(&db, &table, &key).await.is_ok() {
+                                    deleted += 1;
+                                } else {
+                                    errors += 1;
+                                }
+                            }
+                            _ => errors += 1,
+                        }
                     }
+                    Err(_) => errors += 1,
                 }
             }
         } else {
@@ -341,13 +404,18 @@ impl<'a> Evaluator<'a> {
 
             for row in documents {
                 if let Datum::Object(doc) = row {
-                    let table = extract_document_key_value(&doc, &DocumentKey::Table)?;
-                    let key = extract_document_key_value(&doc, &DocumentKey::Id)?;
-
-                    if self.storage.delete(&db, &table, &key).await.is_ok() {
-                        deleted += 1;
-                    } else {
-                        errors += 1;
+                    match (
+                        extract_document_key_value(&doc, "table"),
+                        extract_document_key_value(&doc, "id"),
+                    ) {
+                        (Ok(table), Ok(key)) => {
+                            if self.storage.delete(&db, &table, &key).await.is_ok() {
+                                deleted += 1;
+                            } else {
+                                errors += 1;
+                            }
+                        }
+                        _ => errors += 1,
                     }
                 } else {
                     errors += 1;
@@ -357,40 +425,60 @@ impl<'a> Evaluator<'a> {
 
         self.stats.deleted_count += deleted;
         self.stats.error_count += errors;
+
+        if deleted > 0 {
+            self.stats.batch_operations += 1;
+        }
+
         Ok(Datum::Null)
     }
+}
 
-    #[allow(clippy::only_used_in_recursion)]
-    pub fn eval_expr(&self, expr: &Expr, row: &Row) -> Result<Datum, EvalError> {
-        match expr {
-            Expr::Constant(d) => Ok(d.clone()),
-            Expr::Field { name, separator } => {
-                Ok(extract_field(row, name, separator.clone()).unwrap_or(Datum::Null))
+fn eval_expr(expr: &Expr, row: &Row) -> Result<Datum, EvalError> {
+    match expr {
+        Expr::Constant(d) => Ok(d.clone()),
+        Expr::Field { name, separator } => {
+            Ok(extract_field(row, name, separator.clone()).unwrap_or(Datum::Null))
+        }
+        Expr::BinaryOp { op, left, right } => {
+            let left_val = eval_expr(left, row)?;
+            let right_val = eval_expr(right, row)?;
+
+            match (op, left_val, right_val) {
+                (BinOp::Eq, a, b) => Ok(Datum::Bool(a == b)),
+                (BinOp::Ne, a, b) => Ok(Datum::Bool(a != b)),
+                (BinOp::Lt, Datum::Decimal(a), Datum::Decimal(b)) => Ok(Datum::Bool(a < b)),
+                (BinOp::Le, Datum::Decimal(a), Datum::Decimal(b)) => Ok(Datum::Bool(a <= b)),
+                (BinOp::Gt, Datum::Decimal(a), Datum::Decimal(b)) => Ok(Datum::Bool(a > b)),
+                (BinOp::Ge, Datum::Decimal(a), Datum::Decimal(b)) => Ok(Datum::Bool(a >= b)),
+                (BinOp::And, Datum::Bool(a), Datum::Bool(b)) => Ok(Datum::Bool(a && b)),
+                (BinOp::Or, Datum::Bool(a), Datum::Bool(b)) => Ok(Datum::Bool(a || b)),
+
+                (BinOp::Lt, Datum::String(a), Datum::String(b)) => Ok(Datum::Bool(a < b)),
+                (BinOp::Le, Datum::String(a), Datum::String(b)) => Ok(Datum::Bool(a <= b)),
+                (BinOp::Gt, Datum::String(a), Datum::String(b)) => Ok(Datum::Bool(a > b)),
+                (BinOp::Ge, Datum::String(a), Datum::String(b)) => Ok(Datum::Bool(a >= b)),
+
+                (BinOp::Lt, Datum::Integer(a), Datum::Integer(b)) => Ok(Datum::Bool(a < b)),
+                (BinOp::Le, Datum::Integer(a), Datum::Integer(b)) => Ok(Datum::Bool(a <= b)),
+                (BinOp::Gt, Datum::Integer(a), Datum::Integer(b)) => Ok(Datum::Bool(a > b)),
+                (BinOp::Ge, Datum::Integer(a), Datum::Integer(b)) => Ok(Datum::Bool(a >= b)),
+                _ => Ok(Datum::Null),
             }
-            Expr::BinaryOp { op, left, right } => {
-                match (op, self.eval_expr(left, row)?, self.eval_expr(right, row)?) {
-                    (BinOp::Eq, a, b) => Ok(Datum::Bool(a == b)),
-                    (BinOp::Ne, a, b) => Ok(Datum::Bool(a != b)),
-                    (BinOp::Lt, Datum::Decimal(a), Datum::Decimal(b)) => Ok(Datum::Bool(a < b)),
-                    (BinOp::Le, Datum::Decimal(a), Datum::Decimal(b)) => Ok(Datum::Bool(a <= b)),
-                    (BinOp::Gt, Datum::Decimal(a), Datum::Decimal(b)) => Ok(Datum::Bool(a > b)),
-                    (BinOp::Ge, Datum::Decimal(a), Datum::Decimal(b)) => Ok(Datum::Bool(a >= b)),
-                    (BinOp::And, Datum::Bool(a), Datum::Bool(b)) => Ok(Datum::Bool(a && b)),
-                    (BinOp::Or, Datum::Bool(a), Datum::Bool(b)) => Ok(Datum::Bool(a || b)),
-                    _ => Ok(Datum::Null),
-                }
-            }
-            Expr::UnaryOp { op, expr } => match (op, self.eval_expr(expr, row)?) {
+        }
+        Expr::UnaryOp { op, expr } => {
+            let val = eval_expr(expr, row)?;
+            match (op, val) {
                 (UnOp::Not, Datum::Bool(b)) => Ok(Datum::Bool(!b)),
                 _ => Ok(Datum::Null),
-            },
+            }
         }
     }
 }
 
+#[inline]
 fn use_database(db: Option<&String>) -> String {
-    let default_db = DEFAULT_DATABASE.to_string();
-    db.unwrap_or(&default_db).to_string()
+    db.cloned().unwrap_or_else(|| DEFAULT_DATABASE.to_string())
 }
 
 fn extract_db_from_plan(plan: &PlanNode) -> Option<&String> {
@@ -401,8 +489,8 @@ fn extract_db_from_plan(plan: &PlanNode) -> Option<&String> {
     }
 }
 
-fn extract_document_key_value(doc: &Document, key: &DocumentKey) -> Result<String, EvalError> {
-    match doc.get(key.as_str()) {
+fn extract_document_key_value(doc: &Document, key: &str) -> Result<String, EvalError> {
+    match doc.get(key) {
         Some(Datum::String(s)) => Ok(s.clone()),
         Some(_) => Err(EvalError::InvalidKeyType),
         None => Err(EvalError::MissingField(key.to_string())),
@@ -410,17 +498,46 @@ fn extract_document_key_value(doc: &Document, key: &DocumentKey) -> Result<Strin
 }
 
 fn extract_field(doc: &Document, path: &str, separator: Option<String>) -> Option<Datum> {
-    let mut current = doc;
     let separator = separator.unwrap_or_else(|| ".".to_string());
-    let mut iter = path.split(&separator).peekable();
+    let parts: Vec<&str> = path.split(&separator).collect();
 
-    while let Some(part) = iter.next() {
-        match current.get(part) {
-            Some(Datum::Object(obj)) if iter.peek().is_some() => current = obj,
-            Some(datum) if iter.peek().is_none() => return Some(datum.clone()),
+    let mut current_value = None;
+    let mut current_doc = doc;
+
+    for (i, part) in parts.iter().enumerate() {
+        match current_doc.get(*part) {
+            Some(Datum::Object(obj)) if i < parts.len() - 1 => {
+                current_doc = obj;
+            }
+            Some(datum) if i == parts.len() - 1 => {
+                current_value = Some(datum.clone());
+                break;
+            }
             _ => return None,
         }
     }
 
-    None
+    current_value
+}
+
+#[inline]
+fn opt_start_key(opt_args: &OptArgs) -> Option<String> {
+    opt_args.get("start_key").and_then(|term| {
+        if let Term::Datum(Datum::String(s)) = term {
+            Some(s.clone())
+        } else {
+            None
+        }
+    })
+}
+
+#[inline]
+fn opt_batch_size(opt_args: &OptArgs) -> Option<usize> {
+    opt_args.get("batch_size").and_then(|term| {
+        if let Term::Datum(Datum::Integer(n)) = term {
+            (*n).try_into().ok()
+        } else {
+            None
+        }
+    })
 }

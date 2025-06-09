@@ -1,0 +1,36 @@
+[global]
+# Global criterion configuration for RuloDB benchmarks
+
+# Measurement settings
+measurement_time = 5    # seconds per benchmark
+warm_up_time = 1        # seconds for warm-up
+sample_size = 100       # number of samples to collect
+confidence_level = 0.95 # confidence level for statistical analysis
+significance_level = 0.05 # significance level for change detection
+
+# Output settings
+output_directory = "target/criterion"
+plotting_backend = "Plotters"
+
+# Baseline settings
+# save_baseline = "main"  # Uncomment to save baseline for comparison
+
+[targets]
+# Target-specific configuration can be added here
+# Example:
+# "parser_bench" = { warm_up_time = 2 }
+# "planner_bench" = { measurement_time = 10 }
+# "evaluator_bench" = { sample_size = 50, measurement_time = 10 }
+
+[html]
+# HTML report configuration
+enable = true
+criterion_home = "https://bheisler.github.io/criterion.rs"
+
+[csv]
+# CSV output configuration  
+enable = false
+
+[plotting]
+# Plot configuration
+enable = true

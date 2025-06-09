@@ -19,5 +19,8 @@ cobertura.xml
 # Generated clients
 out/
 
+# Log files
+logs/
+
 # Database files
 rulodb_data/

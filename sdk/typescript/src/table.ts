@@ -18,21 +18,25 @@ export class TableBuilder<T extends object = any> extends TermBuilder<T> {
     return row<T, K>(field, optArgs);
   }
 
-  insert(docs: T | T[], optArgs: TermOptions = {}): TermBuilder<T> {
+  insert(docs: T | T[], optArgs: TermOptions = {}): TermBuilder<T[]> {
     const docsArray = Array.isArray(docs) ? docs : [docs];
-    return new TermBuilder<T>(TermType.Insert, [this.build(), docsArray], optArgs);
+    return new TermBuilder<T[]>(TermType.Insert, [this.build(), docsArray], optArgs);
   }
 
-  get(id: string, optArgs: TermOptions = {}): TermBuilder<T> {
-    return new TermBuilder<T>(TermType.Get, [this.build(), id], optArgs);
+  get(id: string, optArgs: TermOptions = {}): TermBuilder<T | null> {
+    return new TermBuilder<T | null>(TermType.Get, [this.build(), id], optArgs);
   }
 
   filter(predicate: ExprBuilder<Partial<T>>, optArgs: TermOptions = {}): TermBuilder<T> {
     return new TermBuilder<T>(TermType.Filter, [this.build(), predicate.build()], optArgs);
   }
+
+  delete(optArgs: TermOptions = {}): TermBuilder<T[]> {
+    return new TermBuilder<T[]>(TermType.Delete, [this.build()], optArgs);
+  }
 }
 
-export function table<T extends object = Document>(
+export function table<T extends object = Record<string, unknown>>(
   ...args: ConstructorParameters<typeof TableBuilder<T>>
 ): TableBuilder<T> {
   return new TableBuilder<T>(...args);

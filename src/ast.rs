@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 
 pub type OptArgs = BTreeMap<String, Term>;
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum Datum {
     String(String),
@@ -55,7 +55,7 @@ impl std::fmt::Display for Datum {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum BinOp {
     Eq,
     Ne,
@@ -67,12 +67,12 @@ pub enum BinOp {
     Or,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum UnOp {
     Not,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Expr {
     Constant(Datum),
     Field {
@@ -237,6 +237,8 @@ pub enum Term {
     Table {
         db: Option<String>,
         name: String,
+        #[serde(default)]
+        opt_args: OptArgs,
     },
     TableList {
         db: Option<String>,
@@ -283,6 +285,7 @@ mod tests {
     fn test_datum_display() {
         let mut map = BTreeMap::new();
         map.insert("key".to_string(), Datum::String("value".to_string()));
+        map.insert("key2".to_string(), Datum::String("value2".to_string()));
 
         let cases = vec![
             (Datum::String("hello".to_string()), "hello"),
@@ -300,7 +303,10 @@ mod tests {
                 ]),
                 "[6.0,9.0]",
             ),
-            (Datum::Object(map), "{\"key\":\"value\"}"),
+            (
+                Datum::Object(map),
+                "{\"key\":\"value\",\"key2\":\"value2\"}",
+            ),
             (Datum::Parameter("p".to_string()), "\"p\""),
         ];
 
