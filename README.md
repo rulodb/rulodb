@@ -57,3 +57,14 @@ To get started with contributing:
 1. Have a look through GitHub issues labeled "good first issue". Read the contributing guide.
 2. For details on building RuloDB, see the "Build" section above.
 3. Create a fork of RuloDB and submit a pull request with your proposed changes.
+
+## License
+
+RuloDB is dual-licensed under the AGPLv3 and a commercial license:
+
+- AGPL-3.0 for open source use
+- Commercial license available for closed-source or proprietary use
+
+See [`LICENSE`](./LICENSE) and [`LICENSE-COMMERCIAL`](./LICENSE-COMMERCIAL) for details.
+
+To purchase a license or for compliance questions, send an email to [info@opcotech.com](mailto:info@opcotech.com).
