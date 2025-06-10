@@ -418,8 +418,8 @@ describe('Cursor', () => {
         for await (const _res of cursor) {
           // This should throw
         }
-      } catch (error) {
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      } catch (error) {
         // Expected
       }
 
