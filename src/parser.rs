@@ -245,6 +245,7 @@ impl Parser {
                 .iter()
                 .map(|v| self.parse_datum(v))
                 .collect::<Result<Vec<_>, _>>()?,
+            Value::Map(_) => vec![self.parse_datum(&args[1])?],
             _ => return Err(ParseError::ExpectedArray),
         };
         Ok(Term::Insert {
@@ -803,7 +804,44 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_insert_term() {
+    fn test_parse_insert_term_single() {
+        let table = make_input(TermType::Table as u64, vec![Value::String("table".into())]);
+        let doc = Value::Map(vec![(
+            Value::String("doc1key1".into()),
+            Value::String("doc1val1".into()),
+        )]);
+        let input = make_input(TermType::Insert as u64, vec![Value::Array(table), doc]);
+
+        let term = parse(input).unwrap();
+        if let Term::Insert {
+            table,
+            documents,
+            opt_args,
+        } = term
+        {
+            assert_eq!(
+                *table,
+                Term::Table {
+                    db: None,
+                    name: "table".to_string(),
+                    opt_args: OptArgs::new(),
+                }
+            );
+            assert_eq!(
+                documents,
+                vec![Datum::Object(BTreeMap::from([(
+                    "doc1key1".to_string(),
+                    Datum::String("doc1val1".to_string())
+                ),])),]
+            );
+            assert_eq!(opt_args.len(), 0);
+        } else {
+            panic!()
+        }
+    }
+
+    #[test]
+    fn test_parse_insert_term_multiple() {
         let table = make_input(TermType::Table as u64, vec![Value::String("table".into())]);
         let docs = vec![
             Value::Map(vec![(
