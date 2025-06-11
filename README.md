@@ -1,5 +1,5 @@
 [![Build](https://github.com/rulodb/rulodb/actions/workflows/build.yml/badge.svg)](https://github.com/rulodb/rulodb/actions/workflows/build.yml)
-[![License](https://img.shields.io/badge/license-Apache%202.0-green.svg)](./LICENSE)
+[![License](https://img.shields.io/badge/license-AGPL%203.0-green.svg)](./LICENSE)
 [![codecov](https://codecov.io/gh/rulodb/rulodb/graph/badge.svg?token=9NVFTUXUEV)](https://codecov.io/gh/rulodb/rulodb)
 
 <br />
