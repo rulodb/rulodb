@@ -34,4 +34,12 @@ export default [
             "simple-import-sort/exports": "error",
         },
     },
+    {
+        files: ["**/__tests__/**/*.ts", "**/*.test.ts", "**/*.spec.ts"],
+        rules: {
+            "@typescript-eslint/no-explicit-any": "off",
+            "@typescript-eslint/no-unused-vars": "off",
+            "@typescript-eslint/ban-ts-comment": "off",
+        },
+    },
 ];

@@ -1,8 +1,12 @@
 import { Client } from './client';
-import { ExecutionResult, QueryResponse, Term, TermOptions, TermType } from './terms';
+import { Term, TermAST, TermType } from './types';
+
+export type CursorOptions = {
+  batchSize?: number;
+};
 
 // Type guard to check if a result is a Cursor
-export function isCursor<T>(result: Cursor<T> | ExecutionResult<T>): result is Cursor<T> {
+export function isCursor<T>(result: unknown): result is Cursor<T> {
   return (
     result != null &&
     typeof result === 'object' &&
@@ -14,24 +18,28 @@ export function isCursor<T>(result: Cursor<T> | ExecutionResult<T>): result is C
 export class Cursor<T> implements AsyncIterable<T> {
   private client: Client;
   private readonly originalQuery: Term;
-  private readonly batchSize: number | undefined;
+  private readonly options: CursorOptions;
   private startKey?: string;
   private buffer: T[] = [];
   private done = false;
 
-  constructor(client: Client, query: Term, { batchSize }: { batchSize?: number }) {
+  constructor(client: Client, query: Term, options: CursorOptions = {}) {
     this.client = client;
-    this.originalQuery = structuredClone(query);
-    this.batchSize = batchSize;
+    this.originalQuery = query;
+    this.options = options;
   }
 
   private async fetchNextBatch(): Promise<void> {
     if (this.done) return;
 
-    const updatedQuery = this.injectPagination(this.originalQuery, this.startKey, this.batchSize);
+    const updatedQuery = this.injectPagination(
+      this.originalQuery,
+      this.startKey,
+      this.options.batchSize
+    );
 
     try {
-      const response = await this.client.send<Term, QueryResponse<T>>(updatedQuery);
+      const response = await this.client.send<TermAST, T[]>(updatedQuery.toAST());
       const raw = Array.isArray(response) ? response : [response];
 
       if (raw.length === 0) {
@@ -51,7 +59,7 @@ export class Cursor<T> implements AsyncIterable<T> {
         }
 
         // If we got fewer results than requested batch size, we're done
-        if (this.batchSize && raw.length < this.batchSize) {
+        if (this.options.batchSize && raw.length < this.options.batchSize) {
           this.done = true;
           return;
         }
@@ -68,31 +76,40 @@ export class Cursor<T> implements AsyncIterable<T> {
   }
 
   private injectPagination(query: Term, startKey?: string, batchSize?: number): Term {
-    const [termType, args, optArgs] = query;
+    const ast = query.toAST();
+    const [termType, args, optArgs] = ast;
 
     // Check if this is a Table term
     if (termType === TermType.Table) {
       // Always produce the 3-element form for Table with pagination
-      const newOptArgs: TermOptions = {
-        ...((optArgs as TermOptions) || {}),
+      const newOptArgs = {
+        ...((optArgs as Record<string, unknown>) || {}),
         ...(batchSize !== undefined ? { batch_size: batchSize } : {}),
         ...(startKey !== undefined ? { start_key: startKey } : {})
       };
-      return [termType, args, newOptArgs];
+
+      return {
+        toAST: () => [termType, args, newOptArgs as Record<string, unknown>]
+      };
     }
 
     // Recursively process arguments if they are Terms
-    const newArgs = (Array.isArray(args) ? args : []).map((arg) =>
-      Array.isArray(arg) && typeof arg[0] === 'number'
-        ? this.injectPagination(arg as Term, startKey, batchSize)
-        : arg
-    );
+    const newArgs = (Array.isArray(args) ? args : []).map((arg) => {
+      if (arg && typeof arg === 'object' && 'toAST' in arg) {
+        return this.injectPagination(arg as Term, startKey, batchSize);
+      }
+      return arg;
+    });
 
     // Preserve the original structure (2 or 3 elements)
-    if (query.length === 3) {
-      return [termType, newArgs, optArgs as TermOptions];
+    if (ast.length === 3) {
+      return {
+        toAST: () => [termType, newArgs, optArgs as Record<string, unknown>]
+      };
     } else {
-      return [termType, newArgs];
+      return {
+        toAST: () => [termType, newArgs]
+      };
     }
   }
 
@@ -129,8 +146,8 @@ export class Cursor<T> implements AsyncIterable<T> {
     this.done = true;
   }
 
-  public async executeImmediate<R = unknown>(): Promise<ExecutionResult<R>> {
-    const response = await this.client.send<Term, ExecutionResult<R>>(this.originalQuery);
+  public async executeImmediate<R = unknown>(): Promise<R> {
+    const response = await this.client.send<TermAST, R>(this.originalQuery.toAST());
     return response;
   }
 }

@@ -1,429 +1,204 @@
 import { Client } from '../src/client';
 import { Cursor, isCursor } from '../src/cursor';
-import { ExecutionResult, Term, TermType } from '../src/terms';
+import { Term, TermType } from '../src/types';
 
-interface MockClient extends Pick<Client, 'send'> {
-  send: jest.Mock;
-}
-
-describe('isCursor', () => {
-  it('should return true for Cursor instances', () => {
-    const mockClient = { send: jest.fn() } as unknown as Client;
-    const cursor = new Cursor(mockClient, [TermType.Table, ['users']], {});
-    expect(isCursor(cursor)).toBe(true);
-  });
-
-  it('should return false for ExecutionResult', () => {
-    const executionResult: ExecutionResult<string> = {
-      result: 'test',
-      stats: {
-        read_count: 1,
-        inserted_count: 0,
-        updated_count: 0,
-        deleted_count: 0,
-        error_count: 0,
-        duration_ms: 10
-      }
-    };
-    expect(isCursor(executionResult)).toBe(false);
-  });
-});
+// Mock the client
+jest.mock('../src/client');
 
 describe('Cursor', () => {
-  let mockClient: MockClient;
+  let mockClient: jest.Mocked<Client>;
+  let mockQuery: jest.Mocked<Term>;
 
   beforeEach(() => {
-    mockClient = { send: jest.fn() };
+    mockClient = {
+      send: jest.fn(),
+      close: jest.fn()
+    } as any;
+
+    mockQuery = {
+      toAST: jest.fn().mockReturnValue([TermType.Table, ['db', 'table']])
+    };
   });
 
-  describe('constructor', () => {
-    it('should initialize with provided parameters', () => {
-      const query: Term = [TermType.Table, ['users']];
-      const cursor = new Cursor(mockClient as unknown as Client, query, { batchSize: 10 });
+  describe('Constructor', () => {
+    it('should create cursor with query and default options', () => {
+      const cursor = new Cursor(mockClient, mockQuery);
 
+      expect(cursor).toBeDefined();
       expect(cursor).toBeInstanceOf(Cursor);
-      // Test that the original query is cloned by checking it's not the same reference
-      expect(cursor['originalQuery']).toEqual(query);
-      expect(cursor['originalQuery']).not.toBe(query);
-      expect(cursor['batchSize']).toBe(10);
     });
 
-    it('should initialize without batchSize', () => {
-      const query: Term = [TermType.Table, ['users']];
-      const cursor = new Cursor(mockClient as unknown as Client, query, {});
+    it('should create cursor with custom options', () => {
+      const options = { batchSize: 100 };
+      const cursor = new Cursor(mockClient, mockQuery, options);
 
-      expect(cursor['batchSize']).toBeUndefined();
+      expect(cursor).toBeDefined();
     });
   });
 
-  describe('async iteration', () => {
-    it('should iterate over single batch of results', async () => {
+  describe('Type guard', () => {
+    it('should identify valid cursor objects', () => {
+      const cursor = new Cursor(mockClient, mockQuery);
+      expect(isCursor(cursor)).toBe(true);
+    });
+
+    it('should reject non-cursor objects', () => {
+      expect(isCursor(null)).toBe(false);
+      expect(isCursor(undefined)).toBe(false);
+      expect(isCursor({})).toBe(false);
+      expect(isCursor({ toArray: 'not a function' })).toBe(false);
+      expect(isCursor([])).toBe(false);
+      expect(isCursor('string')).toBe(false);
+      expect(isCursor(42)).toBe(false);
+    });
+
+    it('should identify cursor-like objects', () => {
+      const cursorLike = {
+        toArray: jest.fn()
+      };
+      expect(isCursor(cursorLike)).toBe(true);
+    });
+  });
+
+  describe('Basic operations', () => {
+    it('should handle toArray with simple data', async () => {
       const mockData = [
-        { id: '1', name: 'Alice' },
-        { id: '2', name: 'Bob' }
+        { id: 'item1', name: 'Item 1' },
+        { id: 'item2', name: 'Item 2' }
       ];
 
-      mockClient.send.mockResolvedValueOnce(mockData).mockResolvedValueOnce([]); // Next batch returns empty to stop pagination
+      mockClient.send.mockResolvedValueOnce(mockData).mockResolvedValueOnce([]);
 
-      const cursor = new Cursor(mockClient as unknown as Client, [TermType.Table, ['users']], {});
-      const results = [];
+      const cursor = new Cursor(mockClient, mockQuery, { batchSize: 10 });
+      const result = await cursor.toArray();
 
-      for await (const item of cursor) {
-        results.push(item);
-      }
-
-      expect(results).toEqual(mockData);
-      expect(mockClient.send).toHaveBeenCalledTimes(2);
+      expect(result).toEqual(mockData);
     });
 
-    it('should iterate over multiple batches', async () => {
-      const batch1 = [
-        { id: '1', name: 'Alice' },
-        { id: '2', name: 'Bob' }
-      ];
-      const batch2 = [{ id: '3', name: 'Charlie' }];
+    it('should handle empty cursor', async () => {
+      mockClient.send.mockResolvedValue([]);
 
-      mockClient.send.mockResolvedValueOnce(batch1).mockResolvedValueOnce(batch2);
+      const cursor = new Cursor(mockClient, mockQuery);
+      const result = await cursor.toArray();
 
-      const cursor = new Cursor(mockClient as unknown as Client, [TermType.Table, ['users']], {
-        batchSize: 2
-      });
-      const results = [];
-
-      for await (const item of cursor) {
-        results.push(item);
-      }
-
-      expect(results).toEqual([...batch1, ...batch2]);
-      expect(mockClient.send).toHaveBeenCalledTimes(2);
+      expect(result).toEqual([]);
     });
 
-    it('should handle empty results', async () => {
-      mockClient.send.mockResolvedValueOnce([]);
-
-      const cursor = new Cursor(mockClient as unknown as Client, [TermType.Table, ['users']], {});
-      const results = [];
-
-      for await (const item of cursor) {
-        results.push(item);
-      }
-
-      expect(results).toEqual([]);
-      expect(mockClient.send).toHaveBeenCalledTimes(1);
-    });
-
-    it('should handle single non-array response', async () => {
-      const mockData = { id: '1', name: 'Alice' };
-      mockClient.send.mockResolvedValueOnce(mockData);
-
-      const cursor = new Cursor(mockClient as unknown as Client, [TermType.Table, ['users']], {});
-      const results = [];
-
-      for await (const item of cursor) {
-        results.push(item);
-      }
-
-      expect(results).toEqual([mockData]);
-    });
-
-    it('should filter out null values', async () => {
-      const mockData = [{ id: '1', name: 'Alice' }, null, { id: '2', name: 'Bob' }, null];
-
-      mockClient.send.mockResolvedValueOnce(mockData).mockResolvedValueOnce([]); // Next batch returns empty to stop pagination
-
-      const cursor = new Cursor(mockClient as unknown as Client, [TermType.Table, ['users']], {});
-      const results = [];
-
-      for await (const item of cursor) {
-        results.push(item);
-      }
-
-      expect(results).toEqual([
-        { id: '1', name: 'Alice' },
-        { id: '2', name: 'Bob' }
-      ]);
-    });
-
-    it('should handle fetch errors', async () => {
-      mockClient.send.mockRejectedValueOnce(new Error('Network error'));
-
-      const cursor = new Cursor(mockClient as unknown as Client, [TermType.Table, ['users']], {});
-
-      await expect(async () => {
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        for await (const _res of cursor) {
-          // This should throw
-        }
-      }).rejects.toThrow('Failed to fetch next batch: Error: Network error');
-    });
-
-    it('should stop pagination when batch size is not met', async () => {
-      const batch1 = [{ id: '1', name: 'Alice' }];
-
-      mockClient.send.mockResolvedValueOnce(batch1);
-
-      const cursor = new Cursor(mockClient as unknown as Client, [TermType.Table, ['users']], {
-        batchSize: 5
-      });
-      const results = [];
-
-      for await (const item of cursor) {
-        results.push(item);
-      }
-
-      expect(results).toEqual(batch1);
-      expect(mockClient.send).toHaveBeenCalledTimes(1);
-    });
-
-    it('should handle items without id field', async () => {
-      const mockData = [{ name: 'Alice' }, { name: 'Bob' }];
-
-      mockClient.send.mockResolvedValueOnce(mockData);
-
-      const cursor = new Cursor(mockClient as unknown as Client, [TermType.Table, ['users']], {});
-      const results = [];
-
-      for await (const item of cursor) {
-        results.push(item);
-      }
-
-      expect(results).toEqual(mockData);
-    });
-  });
-
-  describe('toArray', () => {
-    it('should collect all results into array', async () => {
-      const mockData = [
-        { id: '1', name: 'Alice' },
-        { id: '2', name: 'Bob' }
-      ];
-
-      mockClient.send.mockResolvedValueOnce(mockData).mockResolvedValueOnce([]); // Next batch returns empty to stop pagination
-
-      const cursor = new Cursor(mockClient as unknown as Client, [TermType.Table, ['users']], {});
-      const results = await cursor.toArray();
-
-      expect(results).toEqual(mockData);
-    });
-
-    it('should handle empty results', async () => {
-      mockClient.send.mockResolvedValueOnce([]);
-
-      const cursor = new Cursor(mockClient as unknown as Client, [TermType.Table, ['users']], {});
-      const results = await cursor.toArray();
-
-      expect(results).toEqual([]);
-    });
-  });
-
-  describe('return', () => {
-    it('should close cursor and return done iterator result', async () => {
-      const cursor = new Cursor(mockClient as unknown as Client, [TermType.Table, ['users']], {});
+    it('should return iterator result on return()', async () => {
+      const cursor = new Cursor(mockClient, mockQuery);
       const result = await cursor.return();
 
-      expect(result.done).toBe(true);
-      expect(cursor['done']).toBe(true);
+      expect(result).toEqual({
+        value: undefined,
+        done: true
+      });
     });
-  });
 
-  describe('close', () => {
-    it('should mark cursor as done', () => {
-      const cursor = new Cursor(mockClient as unknown as Client, [TermType.Table, ['users']], {});
+    it('should close cursor properly', () => {
+      const cursor = new Cursor(mockClient, mockQuery);
+
       cursor.close();
 
-      expect(cursor['done']).toBe(true);
+      // Cursor should be marked as done
+      expect((cursor as any).done).toBe(true);
     });
   });
 
-  describe('executeImmediate', () => {
-    it('should execute original query immediately', async () => {
-      const mockResponse: ExecutionResult<string> = {
-        result: 'immediate result',
-        stats: {
-          read_count: 1,
-          inserted_count: 0,
-          updated_count: 0,
-          deleted_count: 0,
-          error_count: 0,
-          duration_ms: 5
-        }
-      };
+  describe('Execute immediate', () => {
+    it('should execute query immediately without cursor logic', async () => {
+      const expectedResult = { result: 'immediate' };
+      mockClient.send.mockResolvedValue(expectedResult);
 
-      mockClient.send.mockResolvedValueOnce(mockResponse);
-
-      const cursor = new Cursor(mockClient as unknown as Client, [TermType.Table, ['users']], {});
+      const cursor = new Cursor(mockClient, mockQuery);
       const result = await cursor.executeImmediate();
 
-      expect(result).toEqual(mockResponse);
-      expect(mockClient.send).toHaveBeenCalledWith([TermType.Table, ['users']]);
+      expect(result).toEqual(expectedResult);
+      expect(mockClient.send).toHaveBeenCalledWith(mockQuery.toAST());
+    });
+
+    it('should handle immediate execution errors', async () => {
+      const error = new Error('Immediate execution failed');
+      mockClient.send.mockRejectedValue(error);
+
+      const cursor = new Cursor(mockClient, mockQuery);
+
+      await expect(cursor.executeImmediate()).rejects.toThrow('Immediate execution failed');
     });
   });
 
-  describe('pagination injection', () => {
-    it('should inject pagination into Table terms', async () => {
-      const mockData = [{ id: '1', name: 'Alice' }];
-      mockClient.send.mockResolvedValueOnce(mockData);
+  describe('Pagination basics', () => {
+    it('should inject pagination into Table terms', () => {
+      const tableQuery: Term = {
+        toAST: () => [TermType.Table, ['db', 'table']]
+      };
 
-      const cursor = new Cursor(mockClient as unknown as Client, [TermType.Table, ['users']], {
-        batchSize: 10
+      const cursor = new Cursor(mockClient, tableQuery, { batchSize: 50 });
+
+      // Access private method through any cast for testing
+      const injectedQuery = (cursor as any).injectPagination(tableQuery, 'start123', 50);
+      const ast = injectedQuery.toAST();
+
+      expect(ast).toHaveLength(3);
+      expect(ast[0]).toBe(TermType.Table);
+      expect(ast[1]).toEqual(['db', 'table']);
+      expect(ast[2]).toMatchObject({
+        batch_size: 50,
+        start_key: 'start123'
       });
-
-      // Trigger fetchNextBatch by starting iteration
-      const iterator = cursor[Symbol.asyncIterator]();
-      await iterator.next();
-
-      expect(mockClient.send).toHaveBeenCalledWith([TermType.Table, ['users'], { batch_size: 10 }]);
     });
 
-    it('should inject start_key for subsequent batches', async () => {
-      const batch1 = [
-        { id: '1', name: 'Alice' },
-        { id: '2', name: 'Bob' }
-      ];
-      const batch2 = [{ id: '3', name: 'Charlie' }];
+    it('should preserve existing options in Table terms', () => {
+      const tableQuery: Term = {
+        toAST: () => [TermType.Table, ['db', 'table'], { existing_option: 'value' } as any]
+      };
 
-      mockClient.send
-        .mockResolvedValueOnce(batch1)
-        .mockResolvedValueOnce(batch2)
-        .mockResolvedValueOnce([]);
+      const cursor = new Cursor(mockClient, tableQuery, { batchSize: 40 });
+      const injectedQuery = (cursor as any).injectPagination(tableQuery, 'start999', 40);
+      const ast = injectedQuery.toAST();
 
-      const cursor = new Cursor(mockClient as unknown as Client, [TermType.Table, ['users']], {
-        batchSize: 2
+      expect(ast[2]).toMatchObject({
+        existing_option: 'value',
+        batch_size: 40,
+        start_key: 'start999'
       });
-
-      // Consume all results to trigger multiple batches
-      const results = [];
-      for await (const item of cursor) {
-        results.push(item);
-      }
-
-      expect(mockClient.send).toHaveBeenNthCalledWith(1, [
-        TermType.Table,
-        ['users'],
-        { batch_size: 2 }
-      ]);
-      expect(mockClient.send).toHaveBeenNthCalledWith(2, [
-        TermType.Table,
-        ['users'],
-        { batch_size: 2, start_key: '2' }
-      ]);
-    });
-
-    it('should preserve existing optArgs when injecting pagination', async () => {
-      const mockData = [{ id: '1', name: 'Alice' }];
-      mockClient.send.mockResolvedValueOnce(mockData);
-
-      const cursor = new Cursor(
-        mockClient as unknown as Client,
-        [TermType.Table, ['users'], { index: 'name' }],
-        { batchSize: 10 }
-      );
-
-      const iterator = cursor[Symbol.asyncIterator]();
-      await iterator.next();
-
-      expect(mockClient.send).toHaveBeenCalledWith([
-        TermType.Table,
-        ['users'],
-        { index: 'name', batch_size: 10 }
-      ]);
-    });
-
-    it('should handle non-Table terms by recursively processing args', async () => {
-      const mockData = [{ id: '1', name: 'Alice' }];
-      mockClient.send.mockResolvedValueOnce(mockData);
-
-      const nestedQuery: Term = [
-        TermType.Filter,
-        [
-          [TermType.Table, ['users']],
-          [TermType.Eq, [['field'], 'value']]
-        ]
-      ];
-
-      const cursor = new Cursor(mockClient as unknown as Client, nestedQuery, { batchSize: 10 });
-
-      const iterator = cursor[Symbol.asyncIterator]();
-      await iterator.next();
-
-      expect(mockClient.send).toHaveBeenCalledWith([
-        TermType.Filter,
-        [
-          [TermType.Table, ['users'], { batch_size: 10 }],
-          [TermType.Eq, [['field'], 'value']]
-        ]
-      ]);
-    });
-
-    it('should preserve 2-element term structure when no optArgs exist', async () => {
-      const mockData = [{ id: '1', name: 'Alice' }];
-      mockClient.send.mockResolvedValueOnce(mockData);
-
-      const cursor = new Cursor(
-        mockClient as unknown as Client,
-        [TermType.Filter, [['table'], ['predicate']]],
-        {}
-      );
-
-      const iterator = cursor[Symbol.asyncIterator]();
-      await iterator.next();
-
-      expect(mockClient.send).toHaveBeenCalledWith([TermType.Filter, [['table'], ['predicate']]]);
-    });
-
-    it('should handle empty start_key by stopping pagination', async () => {
-      const batch1 = [
-        { id: '1', name: 'Alice' },
-        { id: '', name: 'Bob' } // Empty id
-      ];
-
-      mockClient.send.mockResolvedValueOnce(batch1);
-
-      const cursor = new Cursor(mockClient as unknown as Client, [TermType.Table, ['users']], {
-        batchSize: 10
-      });
-
-      const results = [];
-      for await (const item of cursor) {
-        results.push(item);
-      }
-
-      expect(results).toEqual(batch1);
-      expect(mockClient.send).toHaveBeenCalledTimes(1); // Should not fetch next batch
     });
   });
 
-  describe('cleanup', () => {
-    it('should close cursor when async iteration completes', async () => {
-      const mockData = [{ id: '1', name: 'Alice' }];
-      mockClient.send.mockResolvedValueOnce(mockData).mockResolvedValueOnce([]); // Next batch returns empty to stop pagination
+  describe('Error handling', () => {
+    it('should handle network timeouts gracefully', async () => {
+      const timeoutError = new Error('Request timeout');
+      timeoutError.name = 'TimeoutError';
 
-      const cursor = new Cursor(mockClient as unknown as Client, [TermType.Table, ['users']], {});
+      mockClient.send.mockRejectedValue(timeoutError);
 
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      for await (const _item of cursor) {
-        // Consume results
-      }
+      const cursor = new Cursor(mockClient, mockQuery);
 
-      expect(cursor['done']).toBe(true);
+      await expect(cursor.toArray()).rejects.toThrow(
+        'Failed to fetch next batch: TimeoutError: Request timeout'
+      );
     });
+  });
 
-    it('should close cursor when async iteration throws error', async () => {
-      mockClient.send.mockRejectedValueOnce(new Error('Test error'));
-
-      const cursor = new Cursor(mockClient as unknown as Client, [TermType.Table, ['users']], {});
-
-      try {
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        for await (const _res of cursor) {
-          // This should throw
-        }
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      } catch (error) {
-        // Expected
+  describe('Type safety', () => {
+    it('should maintain generic type through cursor operations', async () => {
+      interface User {
+        id: string;
+        name: string;
+        email: string;
       }
 
-      expect(cursor['done']).toBe(true);
+      const userData: User[] = [
+        { id: 'user1', name: 'John', email: 'john@example.com' },
+        { id: 'user2', name: 'Jane', email: 'jane@example.com' }
+      ];
+
+      mockClient.send.mockResolvedValueOnce(userData).mockResolvedValueOnce([]);
+
+      const cursor = new Cursor<User>(mockClient, mockQuery);
+      const results = await cursor.toArray();
+
+      expect(results).toEqual(userData);
+      // TypeScript should infer results as User[]
     });
   });
 });

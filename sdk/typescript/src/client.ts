@@ -1,6 +1,16 @@
 import { createPool, Options as PoolOptions, Pool } from 'generic-pool';
 import { decode, encode } from 'msgpackr';
-import net from 'net';
+import { connect, Socket } from 'net';
+
+const DEFAULT_HOST = '127.0.0.1';
+const DEFAULT_PORT = 6969;
+const DEFAULT_TIMEOUT = 5000;
+
+export const DEFAULT_POOL_OPTIONS: PoolOptions = {
+  max: 10,
+  min: 2,
+  idleTimeoutMillis: 30000
+};
 
 export interface ClientOptions {
   host: string;
@@ -10,39 +20,36 @@ export interface ClientOptions {
 }
 
 export class Client {
-  private pool: Pool<net.Socket>;
+  private pool: Pool<Socket>;
   private host: string;
   private port: number;
   private timeout: number;
 
-  constructor({
-    host = '127.0.0.1',
-    port = 6969,
-    poolOptions = undefined,
-    timeout = 5000
-  }: ClientOptions) {
-    this.host = host;
-    this.port = port;
-    this.timeout = timeout;
+  constructor(
+    options: ClientOptions | undefined = {
+      host: DEFAULT_HOST,
+      port: DEFAULT_PORT,
+      poolOptions: DEFAULT_POOL_OPTIONS,
+      timeout: DEFAULT_TIMEOUT
+    }
+  ) {
+    this.host = options.host;
+    this.port = options.port;
+    this.timeout = options.timeout || DEFAULT_TIMEOUT;
 
-    this.pool = createPool<net.Socket>(
+    this.pool = createPool<Socket>(
       {
         create: () => this.createConnection(),
         destroy: (socket) => this.destroyConnection(socket),
         validate: (socket) => this.validateConnection(socket)
       },
-      {
-        max: 10,
-        min: 2,
-        idleTimeoutMillis: 30000,
-        ...(poolOptions || {})
-      }
+      options.poolOptions
     );
   }
 
-  private createConnection(): Promise<net.Socket> {
+  private createConnection(): Promise<Socket> {
     return new Promise((resolve, reject) => {
-      const socket = net.connect({ host: this.host, port: this.port }, () => {
+      const socket = connect({ host: this.host, port: this.port }, () => {
         socket.setTimeout(this.timeout);
         resolve(socket);
       });
@@ -50,7 +57,7 @@ export class Client {
     });
   }
 
-  private destroyConnection(socket: net.Socket): Promise<void> {
+  private destroyConnection(socket: Socket): Promise<void> {
     return new Promise((resolve) => {
       socket.end(() => {
         socket.destroy();
@@ -59,7 +66,7 @@ export class Client {
     });
   }
 
-  private validateConnection(socket: net.Socket): Promise<boolean> {
+  private validateConnection(socket: Socket): Promise<boolean> {
     return Promise.resolve(!socket.destroyed);
   }
 
@@ -79,7 +86,7 @@ export class Client {
     }
   }
 
-  private sendMessage(socket: net.Socket, message: Buffer): Promise<Buffer> {
+  private sendMessage(socket: Socket, message: Buffer): Promise<Buffer> {
     return new Promise((resolve, reject) => {
       let buffer = Buffer.alloc(0);
 
@@ -88,8 +95,10 @@ export class Client {
 
         if (buffer.length >= 4) {
           const expectedLength = buffer.readUInt32BE(0);
+
           if (buffer.length >= 4 + expectedLength) {
-            const messageBuffer = buffer.slice(4, 4 + expectedLength);
+            const messageBuffer: Buffer = buffer.subarray(4, 4 + expectedLength);
+
             cleanup();
             resolve(messageBuffer);
           }
@@ -116,8 +125,4 @@ export class Client {
     await this.pool.drain();
     await this.pool.clear();
   }
-}
-
-export async function connect(...args: ConstructorParameters<typeof Client>): Promise<Client> {
-  return new Client(...args);
 }

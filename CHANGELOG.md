@@ -10,7 +10,7 @@ All notable changes to this project will be documented in this file.
 
 ### Documentation
 
-- Replace documentation URL ([d5b198f](https://github.com/rulodb/rulodb/commit/d5b198f4cefc239b3f3044b8cf5e41bc99cfa6ff))
+- Replace documentation URL ([8e7718d](https://github.com/rulodb/rulodb/commit/8e7718d491468d7d5e382e964d4fa83ffd291e28))
 
 ### Features
 
@@ -18,13 +18,15 @@ All notable changes to this project will be documented in this file.
 - Add database ops and simplify parsing ([fcb8507](https://github.com/rulodb/rulodb/commit/fcb8507ca35afc5955a7e567e3866e4fc38a7e66))
 - Implement nested field lookup for `r.row` ([c9174de](https://github.com/rulodb/rulodb/commit/c9174def8e38401347b8ded1332ebb3d165a8162))
 - Support custom separator for getting a field ([6086ed0](https://github.com/rulodb/rulodb/commit/6086ed0cf6dd65c9e18e5583628c8ad9bc2895d3))
-- Implement cursor based results ([4b222c0](https://github.com/rulodb/rulodb/commit/4b222c0cdced02d6e7041048263dc4932f468303))
+- Implement cursor based results ([d0b094e](https://github.com/rulodb/rulodb/commit/d0b094e7280d217468ca12daa5c565e59b86f02b))
+- Rewrite the typescript SDK for better DX ([83bc14c](https://github.com/rulodb/rulodb/commit/83bc14c4b24d91a4dd607a906af398a0e5ef4f56))
 
 ### Miscellaneous Tasks
 
 - Move to dedicated GitHub org ([b57e8b6](https://github.com/rulodb/rulodb/commit/b57e8b6664231bffd211b0f245c260fb99dd4f1c))
 - Add link to matrix and issue templates ([55b3bff](https://github.com/rulodb/rulodb/commit/55b3bff46ecf910302854865ae01307838aa2651))
-- Replace license ([bfc8ab8](https://github.com/rulodb/rulodb/commit/bfc8ab899a51a2353bb4589a8ffb3014cf6845bf))
+- Replace license ([76a9d83](https://github.com/rulodb/rulodb/commit/76a9d833b88df8e64feff9408ba2ca531453a8fe))
+- Export more typescript SDK types ([e05a702](https://github.com/rulodb/rulodb/commit/e05a702208e13eaf36ba7cb03ec30ed0608ff01f))
 
 ### Refactor
 
