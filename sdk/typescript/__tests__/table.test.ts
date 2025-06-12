@@ -1,461 +1,619 @@
-import { Client, Cursor, DatabaseDocument, r, TermType } from '../src/index';
+import { Connection } from '../src/connection';
+import { r, RQuery } from '../src/query';
 
-// Mock the client and cursor
-jest.mock('../src/client');
-jest.mock('../src/cursor');
+// Mock the Connection class
+jest.mock('../src/connection');
 
 describe('Table Operations', () => {
-  let mockClient: jest.Mocked<Client>;
-  let mockCursor: jest.Mocked<Cursor<any>>;
+  let mockConnection: jest.Mocked<Connection>;
 
   beforeEach(() => {
-    mockClient = {
-      send: jest.fn(),
-      close: jest.fn()
+    jest.clearAllMocks();
+    mockConnection = {
+      query: jest.fn(),
+      connect: jest.fn(),
+      disconnect: jest.fn(),
+      isConnected: jest.fn().mockReturnValue(true),
+      on: jest.fn(),
+      off: jest.fn()
     } as any;
-
-    mockCursor = {
-      toArray: jest.fn(),
-      [Symbol.asyncIterator]: jest.fn(),
-      return: jest.fn(),
-      close: jest.fn(),
-      executeImmediate: jest.fn()
-    } as any;
-
-    // Mock Cursor constructor
-    (Cursor as jest.MockedClass<typeof Cursor>).mockImplementation(() => mockCursor);
   });
 
-  describe('Table access', () => {
-    it('should create table reference from database', () => {
-      const table = r.db('testdb').table('users');
-      expect(table).toBeDefined();
-      expect(table._context).toBe('table');
-
-      const ast = table.toAST();
-      expect(ast[0]).toBe(TermType.Table);
-      expect(ast[1]).toHaveLength(2);
-      expect(ast[1][1]).toBe('users');
-    });
-
-    it('should create table reference with complex names', () => {
-      const table = r.db('my-app').table('user_profiles');
-      expect(table).toBeDefined();
-
-      const ast = table.toAST();
-      expect(ast[0]).toBe(TermType.Table);
-      expect(ast[1][1]).toBe('user_profiles');
-    });
-  });
-
-  describe('Get operations', () => {
-    let table: any;
-
-    beforeEach(() => {
-      table = r.db('testdb').table('users');
-    });
-
-    it('should create get query with string key', () => {
-      const getQuery = table.get('user123');
-      expect(getQuery).toBeDefined();
-      expect(typeof getQuery.run).toBe('function');
-      expect(typeof getQuery.delete).toBe('function');
-      expect(typeof getQuery.debug).toBe('function');
-
-      const ast = getQuery.toAST();
-      expect(ast[0]).toBe(TermType.Get);
-      expect(ast[1]).toHaveLength(2);
-      expect(ast[1][1]).toBe('user123');
-    });
-
-    it('should create get query with numeric key', () => {
-      const getQuery = table.get(42);
-      expect(getQuery).toBeDefined();
-
-      const ast = getQuery.toAST();
-      expect(ast[0]).toBe(TermType.Get);
-      expect(ast[1][1]).toBe(42);
-    });
-
-    it('should execute get query', async () => {
-      const expectedUser = { id: 'user123', name: 'John Doe', age: 30 };
-      mockClient.send.mockResolvedValue(expectedUser);
-
-      const getQuery = table.get('user123');
-      const result = await getQuery.run(mockClient);
-
-      expect(result).toEqual(expectedUser);
-      expect(mockClient.send).toHaveBeenCalledWith(getQuery.toAST());
-    });
-
-    it('should execute get query with generic type', async () => {
-      interface User extends DatabaseDocument {
-        id: string;
-        name: string;
-        age: number;
-      }
-
-      const expectedUser: User = { id: 'user123', name: 'John Doe', age: 30 };
-      mockClient.send.mockResolvedValue(expectedUser);
-
-      const getQuery = table.get('user123');
-      const result = await getQuery.run(mockClient);
-
-      expect(result).toEqual(expectedUser);
-    });
-
-    it('should debug get query', () => {
-      const consoleSpy = jest.spyOn(console, 'dir').mockImplementation();
-
-      const getQuery = table.get('user123');
-      const debugResult = getQuery.debug();
-
-      expect(consoleSpy).toHaveBeenCalledWith(getQuery.toAST(), { depth: null });
-      expect(typeof debugResult.run).toBe('function');
-
-      consoleSpy.mockRestore();
-    });
-  });
-
-  describe('Filter operations', () => {
-    let table: any;
-
-    beforeEach(() => {
-      table = r.db('testdb').table('users');
-    });
-
-    it('should create filter query', () => {
-      const predicate = r.row('age').gt(18);
-      const filterQuery = table.filter(predicate);
-
-      expect(filterQuery).toBeDefined();
-      expect(typeof filterQuery.run).toBe('function');
-      expect(typeof filterQuery.filter).toBe('function');
-      expect(typeof filterQuery.debug).toBe('function');
-
-      const ast = filterQuery.toAST();
-      expect(ast[0]).toBe(TermType.Filter);
-      expect(ast[1]).toHaveLength(2);
-    });
-
-    it('should chain multiple filters', () => {
-      const ageFilter = r.row('age').gt(18);
-      const nameFilter = r.row('name').eq('John');
-
-      const filterQuery = table.filter(ageFilter).filter(nameFilter);
-      expect(filterQuery).toBeDefined();
-
-      const ast = filterQuery.toAST();
-      expect(ast[0]).toBe(TermType.Filter);
-    });
-
-    it('should execute filter query returning cursor', () => {
-      const predicate = r.row('age').gt(18);
-      const filterQuery = table.filter(predicate);
-
-      const result = filterQuery.run(mockClient);
-      expect(result).toBe(mockCursor);
-      expect(Cursor).toHaveBeenCalledWith(mockClient, expect.any(Object), undefined);
-    });
-
-    it('should execute filter query with options', () => {
-      const predicate = r.row('age').gt(18);
-      const filterQuery = table.filter(predicate);
-      const options = { batchSize: 100 };
-
-      const result = filterQuery.run(mockClient, options);
-      expect(result).toBe(mockCursor);
-      expect(Cursor).toHaveBeenCalledWith(mockClient, expect.any(Object), options);
-    });
-
-    it('should execute filter query with generic type', () => {
-      interface User extends DatabaseDocument {
-        id: string;
-        age: number;
-      }
-
-      const predicate = r.row('age').gt(18);
-      const filterQuery = table.filter(predicate);
-
-      const result = filterQuery.run(mockClient);
-      expect(result).toBe(mockCursor);
-    });
-
-    it('should debug filter query', () => {
-      const consoleSpy = jest.spyOn(console, 'dir').mockImplementation();
-
-      const predicate = r.row('age').gt(18);
-      const filterQuery = table.filter(predicate);
-      const debugResult = filterQuery.debug();
-
-      expect(consoleSpy).toHaveBeenCalledWith(filterQuery.toAST(), { depth: null });
-      expect(typeof debugResult.run).toBe('function');
-
-      consoleSpy.mockRestore();
-    });
-  });
-
-  describe('Insert operations', () => {
-    let table: any;
-
-    beforeEach(() => {
-      table = r.db('testdb').table('users');
-    });
-
-    it('should create insert query with single document', () => {
-      const document = { name: 'John Doe', age: 30 };
-      const insertQuery = table.insert(document);
-
-      expect(insertQuery).toBeDefined();
-      expect(typeof insertQuery.run).toBe('function');
-      expect(typeof insertQuery.debug).toBe('function');
-
-      const ast = insertQuery.toAST();
-      expect(ast[0]).toBe(TermType.Insert);
-      expect(ast[1]).toHaveLength(2);
-      expect(ast[1][1]).toEqual(document);
-    });
-
-    it('should create insert query with multiple documents', () => {
-      const documents = [
-        { name: 'John Doe', age: 30 },
-        { name: 'Jane Smith', age: 25 }
-      ];
-      const insertQuery = table.insert(documents);
-
-      expect(insertQuery).toBeDefined();
-
-      const ast = insertQuery.toAST();
-      expect(ast[0]).toBe(TermType.Insert);
-      expect(ast[1][1]).toEqual(documents);
-    });
-
-    it('should execute insert query', async () => {
-      const document = { name: 'John Doe', age: 30 };
-      const expectedResult = { inserted: 1, generated_keys: ['user123'] };
-      mockClient.send.mockResolvedValue(expectedResult);
-
-      const insertQuery = table.insert(document);
-      const result = await insertQuery.run(mockClient);
-
-      expect(result).toEqual(expectedResult);
-      expect(mockClient.send).toHaveBeenCalledWith(insertQuery.toAST());
-    });
-
-    it('should execute insert query with generic type', async () => {
-      const document = { name: 'John Doe', age: 30 };
-      const customResult = { success: true, id: 'user123' };
-      mockClient.send.mockResolvedValue(customResult);
-
-      const insertQuery = table.insert(document);
-      const result = await insertQuery.run(mockClient);
-
-      expect(result).toEqual(customResult);
-    });
-
-    it('should debug insert query', () => {
-      const consoleSpy = jest.spyOn(console, 'dir').mockImplementation();
-
-      const document = { name: 'John Doe', age: 30 };
-      const insertQuery = table.insert(document);
-      const debugResult = insertQuery.debug();
-
-      expect(consoleSpy).toHaveBeenCalledWith(insertQuery.toAST(), { depth: null });
-      expect(typeof debugResult.run).toBe('function');
-
-      consoleSpy.mockRestore();
-    });
-  });
-
-  describe('Delete operations', () => {
-    let table: any;
-
-    beforeEach(() => {
-      table = r.db('testdb').table('users');
-    });
-
-    it('should create table delete query', () => {
-      const deleteQuery = table.delete();
-
-      expect(deleteQuery).toBeDefined();
-      expect(typeof deleteQuery.run).toBe('function');
-      expect(typeof deleteQuery.debug).toBe('function');
-
-      const ast = deleteQuery.toAST();
-      expect(ast[0]).toBe(TermType.Delete);
-      expect(ast[1]).toHaveLength(1);
-    });
-
-    it('should create document delete query from get', () => {
-      const getQuery = table.get('user123');
-      const deleteQuery = getQuery.delete();
-
-      expect(deleteQuery).toBeDefined();
-
-      const ast = deleteQuery.toAST();
-      expect(ast[0]).toBe(TermType.Delete);
-    });
-
-    it('should execute table delete query', async () => {
-      const expectedResult = { deleted: 5 };
-      mockClient.send.mockResolvedValue(expectedResult);
-
-      const deleteQuery = table.delete();
-      const result = await deleteQuery.run(mockClient);
-
-      expect(result).toEqual(expectedResult);
-      expect(mockClient.send).toHaveBeenCalledWith(deleteQuery.toAST());
-    });
-
-    it('should execute document delete query', async () => {
-      const expectedResult = { deleted: 1 };
-      mockClient.send.mockResolvedValue(expectedResult);
-
-      const deleteQuery = table.get('user123').delete();
-      const result = await deleteQuery.run(mockClient);
-
-      expect(result).toEqual(expectedResult);
-    });
-
-    it('should debug delete query', () => {
-      const consoleSpy = jest.spyOn(console, 'dir').mockImplementation();
-
-      const deleteQuery = table.delete();
-      const debugResult = deleteQuery.debug();
-
-      expect(consoleSpy).toHaveBeenCalledWith(deleteQuery.toAST(), { depth: null });
-      expect(typeof debugResult.run).toBe('function');
-
-      consoleSpy.mockRestore();
-    });
-  });
-
-  describe('Table execution', () => {
-    let table: any;
-
-    beforeEach(() => {
-      table = r.db('testdb').table('users');
-    });
-
-    it('should execute table query returning cursor', () => {
-      const result = table.run(mockClient);
-      expect(result).toBe(mockCursor);
-      expect(Cursor).toHaveBeenCalledWith(mockClient, table, undefined);
-    });
-
-    it('should execute table query with options', () => {
-      const options = { batchSize: 50 };
-      const result = table.run(mockClient, options);
-      expect(result).toBe(mockCursor);
-      expect(Cursor).toHaveBeenCalledWith(mockClient, table, options);
-    });
-
-    it('should execute table query with generic type', () => {
-      interface User extends DatabaseDocument {
-        name: string;
-        age: number;
-      }
-
-      const result = table.run(mockClient);
-      expect(result).toBe(mockCursor);
-    });
-
-    it('should debug table query', () => {
-      const consoleSpy = jest.spyOn(console, 'dir').mockImplementation();
-
-      const debugResult = table.debug();
-      expect(debugResult).toBe(table);
-      expect(consoleSpy).toHaveBeenCalledWith(table.toAST(), { depth: null });
-
-      consoleSpy.mockRestore();
-    });
-  });
-
-  describe('Error handling', () => {
-    let table: any;
-
-    beforeEach(() => {
-      table = r.db('testdb').table('users');
-    });
-
-    it('should handle get query errors', async () => {
-      const error = new Error('Document not found');
-      mockClient.send.mockRejectedValue(error);
-
-      const getQuery = table.get('nonexistent');
-      await expect(getQuery.run(mockClient)).rejects.toThrow('Document not found');
-    });
-
-    it('should handle insert query errors', async () => {
-      const error = new Error('Insert failed');
-      mockClient.send.mockRejectedValue(error);
-
-      const insertQuery = table.insert({ name: 'John' });
-      await expect(insertQuery.run(mockClient)).rejects.toThrow('Insert failed');
-    });
-
-    it('should handle delete query errors', async () => {
-      const error = new Error('Delete failed');
-      mockClient.send.mockRejectedValue(error);
-
-      const deleteQuery = table.delete();
-      await expect(deleteQuery.run(mockClient)).rejects.toThrow('Delete failed');
-    });
-  });
-
-  describe('Complex table operations', () => {
-    let table: any;
-
-    beforeEach(() => {
-      table = r.db('testdb').table('users');
-    });
-
-    it('should chain get and delete operations', () => {
-      const deleteQuery = table.get('user123').delete();
-      expect(deleteQuery).toBeDefined();
-
-      const ast = deleteQuery.toAST();
-      expect(ast[0]).toBe(TermType.Delete);
-
-      // Verify the nested structure
-      const getArg = ast[1][0];
-      // The argument should be resolved to its AST form
-      if (Array.isArray(getArg)) {
-        expect(getArg[0]).toBe(TermType.Get);
-      } else {
-        expect(getArg).toHaveProperty('toAST');
-        if (typeof getArg === 'object' && getArg && 'toAST' in getArg) {
-          const getAst = (getArg as any).toAST();
-          expect(getAst[0]).toBe(TermType.Get);
+  describe('table()', () => {
+    it('should create a table query with database context', () => {
+      const query = r.db('mydb').table('users');
+      expect(query).toBeInstanceOf(RQuery);
+      expect(query._dbName).toBe('mydb');
+      expect(query._query).toEqual({
+        table: {
+          table: {
+            database: { name: 'mydb' },
+            name: 'users'
+          }
         }
+      });
+    });
+
+    it('should create a table query with default database', () => {
+      const query = r.db().table('posts');
+      expect(query._dbName).toBe('default');
+      expect(query._query).toEqual({
+        table: {
+          table: {
+            database: { name: 'default' },
+            name: 'posts'
+          }
+        }
+      });
+    });
+
+    it('should allow chaining from table query', () => {
+      const query = r.db('mydb').table('users').get('user1');
+      expect(query).toBeInstanceOf(RQuery);
+      expect(query._dbName).toBe('mydb');
+    });
+
+    it('should execute table query successfully', async () => {
+      const mockResult = {
+        items: [
+          { id: 'user1', name: 'Alice' },
+          { id: 'user2', name: 'Bob' }
+        ],
+        cursor: { startKey: 'user2', batchSize: 50 },
+        options: {
+          explain: false,
+          timeoutMs: 0
+        }
+      };
+      mockConnection.query.mockResolvedValue(mockResult);
+
+      const query = r.db('mydb').table('users');
+      const result = await query.run(mockConnection);
+
+      expect(mockConnection.query).toHaveBeenCalledWith({
+        table: {
+          table: {
+            database: { name: 'mydb' },
+            name: 'users'
+          }
+        }
+      });
+      expect(result).toBeDefined();
+    });
+  });
+
+  describe('tableCreate()', () => {
+    it('should create table creation query', () => {
+      const query = r.db('mydb').tableCreate('newtable');
+      expect(query).toBeInstanceOf(RQuery);
+      expect(query._dbName).toBe('mydb');
+      expect(query._query).toEqual({
+        tableCreate: {
+          table: {
+            database: { name: 'mydb' },
+            name: 'newtable'
+          }
+        }
+      });
+    });
+
+    it('should execute table creation successfully', async () => {
+      const mockResult = {
+        result: { created: 1 }
+      };
+      mockConnection.query.mockResolvedValue(mockResult);
+
+      const query = r.db('mydb').tableCreate('newtable');
+      const result = await query.run(mockConnection);
+
+      expect(mockConnection.query).toHaveBeenCalledWith({
+        tableCreate: {
+          table: {
+            database: { name: 'mydb' },
+            name: 'newtable'
+          }
+        }
+      });
+      expect(result).toEqual({ created: 1 });
+    });
+
+    it('should handle table creation errors', async () => {
+      const error = new Error('Table already exists');
+      mockConnection.query.mockRejectedValue(error);
+
+      const query = r.db('mydb').tableCreate('existingtable');
+
+      await expect(query.run(mockConnection)).rejects.toThrow('Table already exists');
+    });
+
+    it('should work with default database', () => {
+      const query = r.db().tableCreate('newtable');
+      expect(query._query).toEqual({
+        tableCreate: {
+          table: {
+            database: { name: 'default' },
+            name: 'newtable'
+          }
+        }
+      });
+    });
+  });
+
+  describe('tableDrop()', () => {
+    it('should create table drop query', () => {
+      const query = r.db('mydb').tableDrop('oldtable');
+      expect(query).toBeInstanceOf(RQuery);
+      expect(query._dbName).toBe('mydb');
+      expect(query._query).toEqual({
+        tableDrop: {
+          table: {
+            database: { name: 'mydb' },
+            name: 'oldtable'
+          }
+        }
+      });
+    });
+
+    it('should execute table drop successfully', async () => {
+      const mockResult = {
+        result: { dropped: 1 }
+      };
+      mockConnection.query.mockResolvedValue(mockResult);
+
+      const query = r.db('mydb').tableDrop('oldtable');
+      const result = await query.run(mockConnection);
+
+      expect(mockConnection.query).toHaveBeenCalledWith({
+        tableDrop: {
+          table: {
+            database: { name: 'mydb' },
+            name: 'oldtable'
+          }
+        }
+      });
+      expect(result).toEqual({ dropped: 1 });
+    });
+
+    it('should handle table drop errors', async () => {
+      const error = new Error('Table not found');
+      mockConnection.query.mockRejectedValue(error);
+
+      const query = r.db('mydb').tableDrop('nonexistent');
+
+      await expect(query.run(mockConnection)).rejects.toThrow('Table not found');
+    });
+
+    it('should work with default database', () => {
+      const query = r.db().tableDrop('oldtable');
+      expect(query._query).toEqual({
+        tableDrop: {
+          table: {
+            database: { name: 'default' },
+            name: 'oldtable'
+          }
+        }
+      });
+    });
+  });
+
+  describe('tableList()', () => {
+    it('should create table list query', () => {
+      const query = r.db('mydb').tableList();
+      expect(query).toBeInstanceOf(RQuery);
+      expect(query._dbName).toBe('mydb');
+      expect(query._query).toEqual({
+        tableList: {
+          database: { name: 'mydb' }
+        }
+      });
+    });
+
+    it('should execute table list successfully', async () => {
+      const mockResult = {
+        items: ['users', 'posts', 'comments'],
+        cursor: undefined
+      };
+      mockConnection.query.mockResolvedValue(mockResult);
+
+      const query = r.db('mydb').tableList();
+      const result = await query.run(mockConnection);
+
+      expect(mockConnection.query).toHaveBeenCalledWith({
+        tableList: {
+          database: { name: 'mydb' }
+        }
+      });
+      expect(result).toBeDefined();
+    });
+
+    it('should handle paginated table list', async () => {
+      const mockResult = {
+        items: ['table1', 'table2'],
+        cursor: { startKey: 'table2', batchSize: 50 },
+        options: {
+          explain: false,
+          timeoutMs: 0
+        }
+      };
+      mockConnection.query.mockResolvedValue(mockResult);
+
+      const query = r.db('mydb').tableList();
+      const result = await query.run(mockConnection, { batchSize: 50 });
+
+      expect(mockConnection.query).toHaveBeenCalledWith({
+        tableList: {
+          database: { name: 'mydb' }
+        },
+        cursor: { startKey: undefined, batchSize: 50 },
+        options: {
+          explain: false,
+          timeoutMs: 0
+        }
+      });
+      expect(result).toBeDefined();
+    });
+
+    it('should handle table list errors', async () => {
+      const error = new Error('Database not found');
+      mockConnection.query.mockRejectedValue(error);
+
+      const query = r.db('nonexistent').tableList();
+
+      await expect(query.run(mockConnection)).rejects.toThrow('Database not found');
+    });
+
+    it('should work with default database', () => {
+      const query = r.db().tableList();
+      expect(query._query).toEqual({
+        tableList: {
+          database: { name: 'default' }
+        }
+      });
+    });
+  });
+
+  describe('table query chaining', () => {
+    it('should allow chaining get() from table', () => {
+      const query = r.db('mydb').table('users').get('user1');
+      expect(query._dbName).toBe('mydb');
+      expect(query._query).toEqual({
+        get: {
+          source: {
+            table: {
+              table: {
+                database: { name: 'mydb' },
+                name: 'users'
+              }
+            }
+          },
+          key: { string: 'user1' }
+        }
+      });
+    });
+
+    it('should allow chaining getAll() from table', () => {
+      const query = r.db('mydb').table('users').getAll('user1', 'user2');
+      expect(query._dbName).toBe('mydb');
+      expect(query._query).toEqual({
+        getAll: {
+          source: {
+            table: {
+              table: {
+                database: { name: 'mydb' },
+                name: 'users'
+              }
+            }
+          },
+          keys: [{ string: 'user1' }, { string: 'user2' }]
+        }
+      });
+    });
+
+    it('should allow chaining filter() from table', () => {
+      const query = r.db('mydb').table('users').filter({ active: true });
+      expect(query._dbName).toBe('mydb');
+      expect(query._query.filter).toBeDefined();
+      expect(query._query.filter!.source).toEqual({
+        table: {
+          table: {
+            database: { name: 'mydb' },
+            name: 'users'
+          }
+        }
+      });
+    });
+
+    it('should allow chaining orderBy() from table', () => {
+      const query = r.db('mydb').table('users').orderBy('name');
+      expect(query._dbName).toBe('mydb');
+      expect(query._query).toEqual({
+        orderBy: {
+          source: {
+            table: {
+              table: {
+                database: { name: 'mydb' },
+                name: 'users'
+              }
+            }
+          },
+          fields: [
+            { fieldName: 'name', direction: 0 } // ASC
+          ]
+        }
+      });
+    });
+
+    it('should allow chaining limit() from table', () => {
+      const query = r.db('mydb').table('users').limit(10);
+      expect(query._dbName).toBe('mydb');
+      expect(query._query).toEqual({
+        limit: {
+          source: {
+            table: {
+              table: {
+                database: { name: 'mydb' },
+                name: 'users'
+              }
+            }
+          },
+          count: 10
+        }
+      });
+    });
+
+    it('should allow chaining skip() from table', () => {
+      const query = r.db('mydb').table('users').skip(5);
+      expect(query._dbName).toBe('mydb');
+      expect(query._query).toEqual({
+        skip: {
+          source: {
+            table: {
+              table: {
+                database: { name: 'mydb' },
+                name: 'users'
+              }
+            }
+          },
+          count: 5
+        }
+      });
+    });
+
+    it('should allow chaining count() from table', () => {
+      const query = r.db('mydb').table('users').count();
+      expect(query._dbName).toBe('mydb');
+      expect(query._query).toEqual({
+        count: {
+          source: {
+            table: {
+              table: {
+                database: { name: 'mydb' },
+                name: 'users'
+              }
+            }
+          }
+        }
+      });
+    });
+
+    it('should allow chaining insert() from table', () => {
+      const doc = { name: 'Alice', age: 30 };
+      const query = r.db('mydb').table('users').insert(doc);
+      expect(query._dbName).toBe('mydb');
+      expect(query._query.insert).toBeDefined();
+      expect(query._query.insert!.source).toEqual({
+        table: {
+          table: {
+            database: { name: 'mydb' },
+            name: 'users'
+          }
+        }
+      });
+    });
+
+    it('should allow chaining update() from table', () => {
+      const patch = { active: true };
+      const query = r.db('mydb').table('users').update(patch);
+      expect(query._dbName).toBe('mydb');
+      expect(query._query.update).toBeDefined();
+      expect(query._query.update!.source).toEqual({
+        table: {
+          table: {
+            database: { name: 'mydb' },
+            name: 'users'
+          }
+        }
+      });
+    });
+
+    it('should allow chaining delete() from table', () => {
+      const query = r.db('mydb').table('users').delete();
+      expect(query._dbName).toBe('mydb');
+      expect(query._query).toEqual({
+        delete: {
+          source: {
+            table: {
+              table: {
+                database: { name: 'mydb' },
+                name: 'users'
+              }
+            }
+          }
+        }
+      });
+    });
+  });
+
+  describe('table query execution with options', () => {
+    it('should pass query options to table creation', async () => {
+      const mockResult = { result: { created: 1 } };
+      mockConnection.query.mockResolvedValue(mockResult);
+
+      const query = r.db('mydb').tableCreate('newtable');
+      await query.run(mockConnection, { timeout: 5000, explain: true });
+
+      expect(mockConnection.query).toHaveBeenCalledWith({
+        tableCreate: {
+          table: {
+            database: { name: 'mydb' },
+            name: 'newtable'
+          }
+        },
+        options: {
+          timeoutMs: 5000,
+          explain: true
+        }
+      });
+    });
+
+    it('should pass cursor options to table queries', async () => {
+      const mockResult = {
+        items: [{ id: '1', name: 'Alice' }],
+        cursor: { startKey: '1', batchSize: 25 },
+        options: {
+          explain: false,
+          timeoutMs: 0
+        }
+      };
+      mockConnection.query.mockResolvedValue(mockResult);
+
+      const query = r.db('mydb').table('users');
+      await query.run(mockConnection, { batchSize: 25, startKey: '0' });
+
+      expect(mockConnection.query).toHaveBeenCalledWith({
+        table: {
+          table: {
+            database: { name: 'mydb' },
+            name: 'users'
+          }
+        },
+        cursor: {
+          startKey: '0',
+          batchSize: 25
+        },
+        options: {
+          explain: false,
+          timeoutMs: 0
+        }
+      });
+    });
+  });
+
+  describe('error handling', () => {
+    it('should handle table access errors', async () => {
+      const error = new Error('Table access denied');
+      mockConnection.query.mockRejectedValue(error);
+
+      const query = r.db('mydb').table('restricted');
+      await expect(query.run(mockConnection)).rejects.toThrow('Table access denied');
+    });
+
+    it('should handle table creation conflicts', async () => {
+      const error = new Error('Table name already in use');
+      mockConnection.query.mockRejectedValue(error);
+
+      const query = r.db('mydb').tableCreate('existing');
+      await expect(query.run(mockConnection)).rejects.toThrow('Table name already in use');
+    });
+
+    it('should handle table drop on non-existent table', async () => {
+      const error = new Error('Table does not exist');
+      mockConnection.query.mockRejectedValue(error);
+
+      const query = r.db('mydb').tableDrop('nonexistent');
+      await expect(query.run(mockConnection)).rejects.toThrow('Table does not exist');
+    });
+
+    it('should handle database not found for table operations', async () => {
+      const error = new Error('Database not found');
+      mockConnection.query.mockRejectedValue(error);
+
+      const query = r.db('nonexistent').table('users');
+      await expect(query.run(mockConnection)).rejects.toThrow('Database not found');
+    });
+  });
+
+  describe('complex table operations', () => {
+    it('should handle complex chained operations', () => {
+      const query = r
+        .db('mydb')
+        .table('users')
+        .filter({ active: true })
+        .orderBy('created_at')
+        .limit(100)
+        .skip(50);
+
+      expect(query._dbName).toBe('mydb');
+      expect(query._query.limit).toBeDefined();
+      expect(query._query.limit!.source).toEqual({
+        skip: {
+          source: {
+            orderBy: {
+              source: {
+                filter: {
+                  source: {
+                    table: {
+                      table: {
+                        database: { name: 'mydb' },
+                        name: 'users'
+                      }
+                    }
+                  },
+                  predicate: expect.any(Object)
+                }
+              },
+              fields: [{ fieldName: 'created_at', direction: 0 }]
+            }
+          },
+          count: 50
+        }
+      });
+      expect(query._query.limit!.count).toBe(100);
+    });
+
+    it('should maintain database context through complex chains', () => {
+      const query = r.db('analytics').table('events').filter({ type: 'click' }).count();
+
+      expect(query._dbName).toBe('analytics');
+      expect(query._query.count!.source).toEqual({
+        filter: {
+          source: {
+            table: {
+              table: {
+                database: { name: 'analytics' },
+                name: 'events'
+              }
+            }
+          },
+          predicate: expect.any(Object)
+        }
+      });
+    });
+  });
+
+  describe('type safety', () => {
+    it('should maintain correct types through table operations', () => {
+      const tableQuery = r.db('test').table('users');
+      const createQuery = r.db('test').tableCreate('users');
+      const dropQuery = r.db('test').tableDrop('users');
+      const listQuery = r.db('test').tableList();
+
+      expect(tableQuery).toBeInstanceOf(RQuery);
+      expect(createQuery).toBeInstanceOf(RQuery);
+      expect(dropQuery).toBeInstanceOf(RQuery);
+      expect(listQuery).toBeInstanceOf(RQuery);
+    });
+
+    it('should preserve type information in chained operations', () => {
+      interface User {
+        id: string;
+        name: string;
+        age: number;
       }
-    });
 
-    it('should handle complex filter chains', () => {
-      const ageFilter = r.row('age').gt(18);
-      const statusFilter = r.row('status').eq('active');
-      const nameFilter = r.row('name').ne('admin');
-
-      const complexFilter = table.filter(ageFilter).filter(statusFilter).filter(nameFilter);
-
-      expect(complexFilter).toBeDefined();
-      const ast = complexFilter.toAST();
-      expect(ast[0]).toBe(TermType.Filter);
-    });
-
-    it('should handle batch operations', () => {
-      const users = Array.from({ length: 100 }, (_, i) => ({
-        name: `User ${i}`,
-        age: 20 + i,
-        email: `user${i}@example.com`
-      }));
-
-      const insertQuery = table.insert(users);
-      expect(insertQuery).toBeDefined();
-
-      const ast = insertQuery.toAST();
-      expect(ast[0]).toBe(TermType.Insert);
-      expect(ast[1][1]).toHaveLength(100);
+      const query = r.db('test').table<User>('users').get('user1');
+      expect(query).toBeInstanceOf(RQuery);
+      expect(query._dbName).toBe('test');
     });
   });
 });

@@ -9,11 +9,8 @@
     "outDir": "./dist",
     "strict": true,
     "skipLibCheck": true,
-    "baseUrl": ".",
-    "paths": {
-      "@/*": ["src/*"]
-    }
+    "baseUrl": "."
   },
-  "include": ["src/**/*", "__tests__/**/*"],
+  "include": ["src/**/*", "__tests__/**/*", "scripts/**/*"],
   "exclude": ["node_modules", "dist"]
 }

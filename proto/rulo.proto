@@ -1,0 +1,442 @@
+/*
+ * RuloDB Protocol Definition
+ *
+ * This file defines the database protocol that combines the best of ReQL-style
+ * chaining with modern protobuf design patterns, streaming, real-time
+ * capabilities, and advanced query optimization.
+ *
+ * The protocol is under development and subject to change. Please do not
+ * implement any functionality until the protocol reaches a stable state.
+ * Otherwise, any changes may break existing implementations. If you must
+ * implement functionality before the protocol stabilizes, please coordinate
+ * on GitHub to ensure compatibility:
+ * - https://github.com/rulo-db/rulo-db/discussions
+ */
+
+syntax = "proto3";
+
+package proto;
+
+// ========== Protocol Infrastructure ==========
+
+enum ProtocolVersion {
+  VERSION_1 = 0;
+}
+
+enum MessageType {
+  // Core query/response cycle
+  QUERY = 0;
+  RESPONSE = 1;
+  ERROR = 2;
+
+  // Authentication flow
+  AUTH_INIT = 3;
+  AUTH_CHALLENGE = 4;
+  AUTH_RESPONSE = 5;
+  AUTH_OK = 6;
+
+  // Administrative
+  PING = 14;
+  PONG = 15;
+  QUERY_PLAN = 16;
+}
+
+/**
+ * Envelope is the universal message wrapper for all RuloDB communication.
+ */
+message Envelope {
+  ProtocolVersion version = 1; // Protocol version
+  string query_id = 2;         // Unique identifier for request correlation
+  MessageType type = 3;        // Message type discriminator
+  bytes payload = 4;           // Serialized message content
+}
+
+// ========== Authentication ==========
+
+message AuthInit { string username = 1; }
+
+message AuthChallenge {
+  string challenge = 1;
+  bytes nonce = 2;
+}
+
+message AuthResponse { bytes proof = 1; }
+
+message AuthOk {
+  string session_token = 1;
+  uint64 expires_at = 2; // Unix timestamp
+  repeated string permissions = 3;
+}
+
+message AuthResult {
+  bool success = 1;
+  string session_token = 2;
+  uint64 expires_at = 3;
+  repeated string permissions = 4;
+}
+
+// ========== References and Identifiers ==========
+
+message DatabaseRef { string name = 1; }
+
+message TableRef {
+  DatabaseRef database = 1;
+  string name = 2;
+}
+
+message FieldRef {
+  repeated string path = 1;
+  string separator = 2;
+}
+
+// ========== Type System ==========
+
+enum NullValue {
+  NULL_VALUE = 0;
+}
+
+enum SortDirection {
+  ASC = 0;
+  DESC = 1;
+}
+
+message Datum {
+  oneof value {
+    bool bool = 1;
+    int64 int = 2;
+    double float = 3;
+    string string = 4;
+    bytes binary = 5;
+    DatumObject object = 6;
+    DatumArray array = 7;
+    NullValue null = 13;
+  }
+}
+
+message DatumObject { map<string, Datum> fields = 1; }
+
+message DatumArray {
+  repeated Datum items = 1;
+  string element_type = 2;
+}
+
+// ========== Cursor & Sorting ==========
+
+message SortField {
+  string field_name = 1;
+  SortDirection direction = 2;
+}
+
+message SortOptions { repeated SortField fields = 1; }
+
+message Cursor {
+  optional string start_key = 1;
+  optional uint32 batch_size = 3;
+  SortOptions sort = 6;
+}
+
+// ========== Query Options ==========
+
+message QueryOptions {
+  uint32 timeout_ms = 1;
+  bool explain = 2;
+}
+
+// ========== Composable Query System ==========
+
+message Query {
+  QueryOptions options = 1;
+  Cursor cursor = 2;
+
+  oneof kind {
+    Insert insert = 3;
+    Delete delete = 4;
+    Update update = 5;
+
+    Table table = 6;
+    Get get = 7;
+    GetAll get_all = 8;
+
+    Filter filter = 9;
+    OrderBy order_by = 10;
+    Limit limit = 11;
+    Skip skip = 12;
+
+    Count count = 13;
+
+    TableCreate table_create = 14;
+    TableDrop table_drop = 15;
+    DatabaseCreate database_create = 16;
+    DatabaseDrop database_drop = 17;
+
+    TableList table_list = 18;
+    DatabaseList database_list = 19;
+
+    Expression expression = 20;
+    Subquery subquery = 21;
+  }
+}
+
+// ========== Query Operations ==========
+
+// Data Retrieval
+message Table { TableRef table = 1; }
+
+message Get {
+  Query source = 1;
+  Datum key = 2;
+}
+
+message GetAll {
+  Query source = 1;
+  repeated Datum keys = 2;
+}
+
+message Filter {
+  Query source = 1;
+  Expression predicate = 2;
+}
+
+message OrderBy {
+  Query source = 1;
+  repeated SortField fields = 2;
+}
+
+message Limit {
+  Query source = 1;
+  uint32 count = 2;
+}
+
+message Skip {
+  Query source = 1;
+  uint32 count = 2;
+}
+
+message Count { Query source = 1; }
+
+// Data Manipulation
+message Insert {
+  Query source = 1;
+  repeated DatumObject documents = 2;
+}
+
+message Delete { Query source = 1; }
+
+message Update {
+  Query source = 1;
+  DatumObject patch = 2;
+}
+
+// Schema Operations
+message DatabaseCreate { string name = 1; }
+
+message DatabaseDrop { string name = 1; }
+
+message DatabaseList {}
+
+message TableCreate { TableRef table = 1; }
+
+message TableDrop { TableRef table = 1; }
+
+message TableList { DatabaseRef database = 1; }
+
+// ========== Expression System ==========
+
+message Expression {
+  oneof expr {
+    Datum literal = 1;
+    FieldRef field = 2;
+    Variable variable = 3;
+    BinaryOp binary = 4;
+    UnaryOp unary = 5;
+    MatchExpr match = 10;
+    Query subquery = 11;
+  }
+}
+
+message Variable { string name = 1; }
+
+message BinaryOp {
+  enum Operator {
+    EQ = 0;
+    NE = 1;
+    LT = 2;
+    LE = 3;
+    GT = 4;
+    GE = 5;
+    AND = 6;
+    OR = 7;
+  }
+
+  Operator op = 1;
+  Expression left = 2;
+  Expression right = 3;
+}
+
+message UnaryOp {
+  enum Operator {
+    NOT = 0;
+  }
+
+  Operator op = 1;
+  Expression expr = 2;
+}
+
+message MatchExpr {
+  Expression value = 1;
+  string pattern = 2;
+  string flags = 3;
+}
+
+message Subquery { Query query = 1; }
+
+// ========== Response Messages ==========
+
+message Response {
+  ResponseMetadata metadata = 1;
+
+  oneof result {
+    QueryResult query = 2;
+    ErrorInfo error = 3;
+    AuthResult auth_result = 4;
+    PingResult pong = 5;
+    QueryPlan plan = 6;
+  }
+}
+
+message ResponseMetadata {
+  string query_id = 1;
+  uint64 timestamp = 2;
+  string server_version = 3;
+}
+
+message ErrorInfo {
+  uint32 code = 1;
+  string message = 2;
+  string type = 3;
+  uint32 line = 4;
+  uint32 column = 5;
+}
+
+// ========== Query Results ==========
+
+message QueryResult {
+  oneof result {
+    LiteralResult literal = 1;
+    GetResult get = 2;
+    GetAllResult get_all = 3;
+    TableScanResult table = 4;
+    FilterResult filter = 5;
+    OrderByResult order_by = 6;
+    LimitResult limit = 7;
+    SkipResult skip = 8;
+    CountResult count = 9;
+
+    InsertResult insert = 10;
+    DeleteResult delete = 11;
+    UpdateResult update = 12;
+
+    DatabaseCreateResult database_create = 13;
+    DatabaseDropResult database_drop = 14;
+    DatabaseListResult database_list = 15;
+    TableCreateResult table_create = 16;
+    TableDropResult table_drop = 17;
+    TableListResult table_list = 18;
+  }
+}
+
+message LiteralResult { Datum value = 1; }
+
+// Retrieval Results
+message GetResult { Datum document = 1; }
+
+message GetAllResult {
+  repeated Datum documents = 1;
+  Cursor cursor = 2;
+}
+
+message TableScanResult {
+  repeated Datum documents = 1;
+  Cursor cursor = 2;
+}
+
+message FilterResult {
+  repeated Datum documents = 1;
+  Cursor cursor = 2;
+}
+
+message OrderByResult {
+  repeated Datum documents = 1;
+  Cursor cursor = 2;
+}
+
+message LimitResult {
+  repeated Datum documents = 1;
+  Cursor cursor = 2;
+}
+
+message SkipResult {
+  repeated Datum documents = 1;
+  Cursor cursor = 2;
+}
+
+message CountResult { uint64 count = 1; }
+
+// Manipulation Results
+message InsertResult {
+  uint64 inserted = 1;
+  repeated Datum generated_keys = 2;
+}
+
+message DeleteResult { uint64 deleted = 1; }
+
+message UpdateResult { uint64 updated = 1; }
+
+// Schema Results
+message DatabaseCreateResult { uint64 created = 1; }
+
+message DatabaseDropResult { uint64 dropped = 1; }
+
+message DatabaseListResult {
+  repeated string databases = 1;
+  Cursor cursor = 2;
+}
+
+message TableCreateResult { uint64 created = 1; }
+
+message TableDropResult { uint64 dropped = 1; }
+
+message TableListResult {
+  repeated string tables = 1;
+  Cursor cursor = 2;
+}
+
+// ========== Misc Administrative ==========
+
+message PingResult {
+  uint64 timestamp = 1;
+  uint32 latency_ms = 2;
+}
+
+// ========== Query Plan ==========
+
+message QueryPlan {
+  repeated PlanNode nodes = 1;
+  PlanStatistics statistics = 2;
+}
+
+message PlanNode {
+  string operation = 1;
+  map<string, string> properties = 2;
+  repeated PlanNode children = 3;
+  double estimated_cost = 4;
+  uint64 estimated_rows = 5;
+}
+
+message PlanStatistics {
+  uint32 planning_time_ms = 1;
+  uint32 execution_time_ms = 2;
+  uint64 rows_examined = 3;
+  uint64 rows_returned = 4;
+  uint64 bytes_read = 5;
+}

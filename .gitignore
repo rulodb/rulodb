@@ -16,11 +16,12 @@ target/
 # Test outputs
 cobertura.xml
 
-# Generated clients
+# Generated files
 out/
 
 # Log files
 logs/
+**/*.log
 
 # Database files
 rulodb_data/

@@ -5,7 +5,7 @@ use clap::{Args, Parser, Subcommand};
     version,
     name = "RuloDB",
     about = r#"
-A simple document database built for developer ergonomics.
+A NoSQL document database built for developer ergonomics.
 
 RuloDB is a simple document database designed for developer ergonomics. It
 provides a straightforward API for storing and retrieving documents, with a
@@ -26,7 +26,7 @@ pub enum Commands {
 #[derive(Debug, Clone, Args)]
 pub struct ServerConfig {
     /// Address for the database server.
-    #[arg(long, short, env = "RULODB_ADDRESS", default_value = "127.0.0.1:6969")]
+    #[arg(long, short, env = "RULODB_ADDRESS", default_value = "127.0.0.1:6090")]
     pub address: String,
 }
 

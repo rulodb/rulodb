@@ -1,454 +1,517 @@
-use rust_decimal::Decimal;
-use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
+pub mod proto {
+    include!(concat!(env!("OUT_DIR"), "/proto.rs"));
+}
 
-pub type OptArgs = BTreeMap<String, Term>;
+pub use proto::*;
+use std::collections::HashMap;
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum Datum {
-    String(String),
-    Integer(i64),
-    #[serde(with = "rust_decimal::serde::float")]
-    Decimal(Decimal),
-    Bool(bool),
-    Null,
-    Array(Vec<Datum>),
-    Object(BTreeMap<String, Datum>),
-    Parameter(String),
+/// The Document is a map of string keys to datum values.
+pub type Document = HashMap<String, Datum>;
+
+/// Predicate is a function that takes a document and returns a boolean value.
+pub type Predicate = Box<dyn Fn(Document) -> bool + Send + Sync>;
+
+/// Represents a field in an ORDER BY clause
+#[derive(Debug, Clone, PartialEq)]
+pub struct OrderByField {
+    pub field_name: String,
+    pub ascending: bool,
+}
+
+impl std::fmt::Display for datum::Value {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            datum::Value::Bool(v) => write!(f, "{v}"),
+            datum::Value::Int(v) => write!(f, "{v}"),
+            datum::Value::Float(v) => write!(f, "{v}"),
+            datum::Value::String(v) => write!(f, "{v}"),
+            datum::Value::Binary(v) => write!(f, "{v:?}"),
+            datum::Value::Object(v) => write!(f, "{v}"),
+            datum::Value::Array(v) => write!(f, "{v}"),
+            datum::Value::Null(_) => write!(f, "NULL"),
+        }
+    }
 }
 
 impl std::fmt::Display for Datum {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::String(s) => write!(f, "{s}"),
-            Self::Integer(i) => write!(f, "{i}"),
-            Self::Decimal(d) => write!(f, "{d}"),
-            Self::Bool(b) => write!(f, "{}", if *b { "true" } else { "false" }),
-            Self::Null => write!(f, "null"),
-            Self::Array(arr) => {
-                write!(f, "[")?;
-                let mut first = true;
-                for item in arr {
-                    if !first {
-                        write!(f, ",")?;
-                    }
-                    write!(f, "{item}")?;
-                    first = false;
-                }
-                write!(f, "]")
-            }
-            Self::Object(obj) => {
-                write!(f, "{{")?;
-                let mut first = true;
-                for (k, v) in obj {
-                    if !first {
-                        write!(f, ",")?;
-                    }
-                    write!(f, "\"{k}\":\"{v}\"")?;
-                    first = false;
-                }
-                write!(f, "}}")
-            }
-            Self::Parameter(p) => write!(f, "\"{p}\""),
+        match &self.value {
+            Some(value) => write!(f, "{value}"),
+            None => write!(f, "NULL"),
         }
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum BinOp {
-    Eq,
-    Ne,
-    Lt,
-    Le,
-    Gt,
-    Ge,
-    And,
-    Or,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum UnOp {
-    Not,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum Expr {
-    Constant(Datum),
-    Field {
-        name: String,
-        separator: Option<String>,
-    },
-    BinaryOp {
-        op: BinOp,
-        left: Box<Expr>,
-        right: Box<Expr>,
-    },
-    UnaryOp {
-        op: UnOp,
-        expr: Box<Expr>,
-    },
-}
-
-impl std::fmt::Display for Expr {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Constant(d) => write!(f, "{d}"),
-            Self::Field { name, separator } => {
-                let separator = separator.clone().unwrap_or_else(|| ".".to_string());
-                write!(f, "{separator}{name}")
-            }
-            Self::BinaryOp { op, left, right } => {
-                let op_str = match op {
-                    BinOp::Eq => "==",
-                    BinOp::Ne => "!=",
-                    BinOp::Gt => ">",
-                    BinOp::Lt => "<",
-                    BinOp::Ge => ">=",
-                    BinOp::Le => "<=",
-                    BinOp::And => "AND",
-                    BinOp::Or => "OR",
-                };
-                write!(f, "({left} {op_str} {right})")
-            }
-            Self::UnaryOp { op, expr } => {
-                let op_str = match op {
-                    UnOp::Not => "NOT",
-                };
-                write!(f, "({op_str} {expr})")
-            }
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-#[repr(u64)]
-pub enum TermType {
-    Invalid = 0,
-    Datum = 1,
-    Expr = 2,
-    Eq = 17,
-    Ne = 18,
-    Lt = 19,
-    Le = 20,
-    Gt = 21,
-    Ge = 22,
-    Not = 23,
-    And = 66,
-    Or = 67,
-    Database = 14,
-    Table = 15,
-    Get = 16,
-    GetField = 31,
-    Filter = 39,
-    Delete = 54,
-    Insert = 56,
-    DatabaseCreate = 57,
-    DatabaseDrop = 58,
-    DatabaseList = 59,
-    TableCreate = 60,
-    TableDrop = 61,
-    TableList = 62,
-}
-
-impl std::fmt::Display for TermType {
+impl std::fmt::Display for DatumObject {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "{}",
-            match self {
-                Self::Datum => "Datum",
-                Self::Expr => "Expr",
-                Self::Eq => "Eq",
-                Self::Ne => "Ne",
-                Self::Lt => "Lt",
-                Self::Le => "Le",
-                Self::Gt => "Gt",
-                Self::Ge => "Ge",
-                Self::Not => "Not",
-                Self::And => "And",
-                Self::Or => "Or",
-                Self::Database => "Database",
-                Self::DatabaseCreate => "DatabaseCreate",
-                Self::DatabaseDrop => "DatabaseDrop",
-                Self::DatabaseList => "DatabaseList",
-                Self::Table => "Table",
-                Self::TableCreate => "TableCreate",
-                Self::TableDrop => "TableDrop",
-                Self::TableList => "TableList",
-                Self::Get => "Get",
-                Self::GetField => "GetField",
-                Self::Filter => "Filter",
-                Self::Delete => "Delete",
-                Self::Insert => "Insert",
-                Self::Invalid => "Invalid",
-            }
+            "{{{}}}",
+            self.fields
+                .iter()
+                .map(|(k, v)| format!("{k}: {v}"))
+                .collect::<Vec<_>>()
+                .join(", ")
         )
     }
 }
 
-impl From<u64> for TermType {
-    fn from(value: u64) -> Self {
-        match value {
-            1 => Self::Datum,
-            2 => Self::Expr,
-            17 => Self::Eq,
-            18 => Self::Ne,
-            19 => Self::Lt,
-            20 => Self::Le,
-            21 => Self::Gt,
-            22 => Self::Ge,
-            23 => Self::Not,
-            66 => Self::And,
-            67 => Self::Or,
-            14 => Self::Database,
-            15 => Self::Table,
-            16 => Self::Get,
-            31 => Self::GetField,
-            39 => Self::Filter,
-            54 => Self::Delete,
-            56 => Self::Insert,
-            57 => Self::DatabaseCreate,
-            58 => Self::DatabaseDrop,
-            59 => Self::DatabaseList,
-            60 => Self::TableCreate,
-            61 => Self::TableDrop,
-            62 => Self::TableList,
-            _ => Self::Invalid,
-        }
+impl std::fmt::Display for DatumArray {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "[{}]",
+            self.items
+                .iter()
+                .map(|v| format!("{v}"))
+                .collect::<Vec<_>>()
+                .join(", ")
+        )
     }
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum Term {
-    Datum(Datum),
-    Expr(Expr),
-    Database {
-        name: String,
-    },
-    DatabaseCreate {
-        name: String,
-    },
-    DatabaseDrop {
-        name: String,
-    },
-    DatabaseList,
-    Table {
-        db: Option<String>,
-        name: String,
-        #[serde(default)]
-        opt_args: OptArgs,
-    },
-    TableList {
-        db: Option<String>,
-    },
-    TableCreate {
-        db: Option<String>,
-        name: String,
-    },
-    TableDrop {
-        db: Option<String>,
-        name: String,
-    },
-    Get {
-        table: Box<Term>,
-        key: Datum,
-        #[serde(default)]
-        opt_args: OptArgs,
-    },
-    Filter {
-        source: Box<Term>,
-        predicate: Box<Term>,
-        #[serde(default)]
-        opt_args: OptArgs,
-    },
-    Delete {
-        source: Box<Term>,
-        #[serde(default)]
-        opt_args: OptArgs,
-    },
-    Insert {
-        table: Box<Term>,
-        documents: Vec<Datum>,
-        #[serde(default)]
-        opt_args: OptArgs,
-    },
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::BTreeMap;
+    use std::collections::HashMap;
 
     #[test]
-    fn test_datum_display() {
-        let mut map = BTreeMap::new();
-        map.insert("key".to_string(), Datum::String("value".to_string()));
-        map.insert("key2".to_string(), Datum::String("value2".to_string()));
+    fn test_datum_value_display_bool() {
+        let value = datum::Value::Bool(true);
+        assert_eq!(format!("{}", value), "true");
 
-        let cases = vec![
-            (Datum::String("hello".to_string()), "hello"),
-            (Datum::Decimal(Decimal::new(420, 1)), "42.0"),
-            (Datum::Bool(true), "true"),
-            (Datum::Null, "null"),
-            (
-                Datum::Array(vec![Datum::Decimal(1.into()), Datum::Decimal(2.into())]),
-                "[1,2]",
-            ),
-            (
-                Datum::Array(vec![
-                    Datum::Decimal(Decimal::new(60, 1)),
-                    Datum::Decimal(Decimal::new(90, 1)),
-                ]),
-                "[6.0,9.0]",
-            ),
-            (
-                Datum::Object(map),
-                "{\"key\":\"value\",\"key2\":\"value2\"}",
-            ),
-            (Datum::Parameter("p".to_string()), "\"p\""),
-        ];
-
-        for (datum, expected) in cases {
-            assert_eq!(datum.to_string(), expected);
-        }
+        let value = datum::Value::Bool(false);
+        assert_eq!(format!("{}", value), "false");
     }
 
     #[test]
-    fn test_expr_display() {
-        let make_binop_expr = |op: BinOp, left: Datum, right: Datum| Expr::BinaryOp {
-            op,
-            left: Box::new(Expr::Constant(left)),
-            right: Box::new(Expr::Constant(right)),
+    fn test_datum_value_display_int() {
+        let value = datum::Value::Int(42);
+        assert_eq!(format!("{}", value), "42");
+
+        let value = datum::Value::Int(-123);
+        assert_eq!(format!("{}", value), "-123");
+
+        let value = datum::Value::Int(0);
+        assert_eq!(format!("{}", value), "0");
+    }
+
+    #[test]
+    fn test_datum_value_display_float() {
+        let value = datum::Value::Float(3.15);
+        assert_eq!(format!("{}", value), "3.15");
+
+        let value = datum::Value::Float(-2.5);
+        assert_eq!(format!("{}", value), "-2.5");
+
+        let value = datum::Value::Float(0.0);
+        assert_eq!(format!("{}", value), "0");
+    }
+
+    #[test]
+    fn test_datum_value_display_string() {
+        let value = datum::Value::String("hello".to_string());
+        assert_eq!(format!("{}", value), "hello");
+
+        let value = datum::Value::String("".to_string());
+        assert_eq!(format!("{}", value), "");
+
+        let value = datum::Value::String("multi word string".to_string());
+        assert_eq!(format!("{}", value), "multi word string");
+    }
+
+    #[test]
+    fn test_datum_value_display_binary() {
+        let value = datum::Value::Binary(vec![1, 2, 3]);
+        assert_eq!(format!("{}", value), "[1, 2, 3]");
+
+        let value = datum::Value::Binary(vec![]);
+        assert_eq!(format!("{}", value), "[]");
+
+        let value = datum::Value::Binary(vec![255, 0, 128]);
+        assert_eq!(format!("{}", value), "[255, 0, 128]");
+    }
+
+    #[test]
+    fn test_datum_value_display_object() {
+        let mut fields = HashMap::new();
+        fields.insert(
+            "name".to_string(),
+            Datum {
+                value: Some(datum::Value::String("John".to_string())),
+            },
+        );
+        fields.insert(
+            "age".to_string(),
+            Datum {
+                value: Some(datum::Value::Int(30)),
+            },
+        );
+
+        let object = DatumObject { fields };
+
+        let value = datum::Value::Object(object);
+        let result = format!("{}", value);
+
+        // Since HashMap iteration order is not guaranteed, check that both possible orders are valid
+        assert!(result == "{name: John, age: 30}" || result == "{age: 30, name: John}");
+    }
+
+    #[test]
+    fn test_datum_value_display_array() {
+        let items = vec![
+            Datum {
+                value: Some(datum::Value::String("first".to_string())),
+            },
+            Datum {
+                value: Some(datum::Value::Int(42)),
+            },
+            Datum {
+                value: Some(datum::Value::Bool(true)),
+            },
+        ];
+
+        let array = DatumArray {
+            items,
+            element_type: "mixed".to_string(),
         };
 
-        let make_unop_expr = |op: UnOp, expr: Expr| Expr::UnaryOp {
-            op,
-            expr: Box::new(expr),
+        let value = datum::Value::Array(array);
+        assert_eq!(format!("{}", value), "[first, 42, true]");
+    }
+
+    #[test]
+    fn test_datum_value_display_null() {
+        let value = datum::Value::Null(NullValue::NullValue.into());
+        assert_eq!(format!("{}", value), "NULL");
+    }
+
+    #[test]
+    fn test_datum_display_with_value() {
+        let datum = Datum {
+            value: Some(datum::Value::String("test".to_string())),
+        };
+        assert_eq!(format!("{}", datum), "test");
+
+        let datum = Datum {
+            value: Some(datum::Value::Int(123)),
+        };
+        assert_eq!(format!("{}", datum), "123");
+
+        let datum = Datum {
+            value: Some(datum::Value::Bool(false)),
+        };
+        assert_eq!(format!("{}", datum), "false");
+    }
+
+    #[test]
+    fn test_datum_display_none() {
+        let datum = Datum { value: None };
+        assert_eq!(format!("{}", datum), "NULL");
+    }
+
+    #[test]
+    fn test_datum_object_display_empty() {
+        let object = DatumObject {
+            fields: HashMap::new(),
+        };
+        assert_eq!(format!("{}", object), "{}");
+    }
+
+    #[test]
+    fn test_datum_object_display_single_field() {
+        let mut fields = HashMap::new();
+        fields.insert(
+            "key".to_string(),
+            Datum {
+                value: Some(datum::Value::String("value".to_string())),
+            },
+        );
+
+        let object = DatumObject { fields };
+        assert_eq!(format!("{}", object), "{key: value}");
+    }
+
+    #[test]
+    fn test_datum_object_display_multiple_fields() {
+        let mut fields = HashMap::new();
+        fields.insert(
+            "str_field".to_string(),
+            Datum {
+                value: Some(datum::Value::String("text".to_string())),
+            },
+        );
+        fields.insert(
+            "num_field".to_string(),
+            Datum {
+                value: Some(datum::Value::Int(42)),
+            },
+        );
+        fields.insert(
+            "bool_field".to_string(),
+            Datum {
+                value: Some(datum::Value::Bool(true)),
+            },
+        );
+
+        let object = DatumObject { fields };
+
+        let result = format!("{}", object);
+
+        // Check that the result contains all expected key-value pairs
+        assert!(result.starts_with('{'));
+        assert!(result.ends_with('}'));
+        assert!(result.contains("str_field: text"));
+        assert!(result.contains("num_field: 42"));
+        assert!(result.contains("bool_field: true"));
+    }
+
+    #[test]
+    fn test_datum_object_display_nested() {
+        let mut inner_fields = HashMap::new();
+        inner_fields.insert(
+            "inner".to_string(),
+            Datum {
+                value: Some(datum::Value::String("nested".to_string())),
+            },
+        );
+
+        let inner_object = DatumObject {
+            fields: inner_fields,
         };
 
-        let cases = vec![
-            (Expr::Constant(Datum::String("hello".to_string())), "hello"),
-            (
-                Expr::Field {
-                    name: "id".to_string(),
-                    separator: Some(".".to_string()),
+        let mut outer_fields = HashMap::new();
+        outer_fields.insert(
+            "object".to_string(),
+            Datum {
+                value: Some(datum::Value::Object(inner_object)),
+            },
+        );
+
+        let outer_object = DatumObject {
+            fields: outer_fields,
+        };
+
+        assert_eq!(format!("{}", outer_object), "{object: {inner: nested}}");
+    }
+
+    #[test]
+    fn test_datum_array_display_empty() {
+        let array = DatumArray {
+            items: vec![],
+            element_type: "string".to_string(),
+        };
+        assert_eq!(format!("{}", array), "[]");
+    }
+
+    #[test]
+    fn test_datum_array_display_single_item() {
+        let items = vec![Datum {
+            value: Some(datum::Value::String("only".to_string())),
+        }];
+
+        let array = DatumArray {
+            items,
+            element_type: "string".to_string(),
+        };
+        assert_eq!(format!("{}", array), "[only]");
+    }
+
+    #[test]
+    fn test_datum_array_display_multiple_items() {
+        let items = vec![
+            Datum {
+                value: Some(datum::Value::String("first".to_string())),
+            },
+            Datum {
+                value: Some(datum::Value::String("second".to_string())),
+            },
+            Datum {
+                value: Some(datum::Value::String("third".to_string())),
+            },
+        ];
+
+        let array = DatumArray {
+            items,
+            element_type: "string".to_string(),
+        };
+        assert_eq!(format!("{}", array), "[first, second, third]");
+    }
+
+    #[test]
+    fn test_datum_array_display_mixed_types() {
+        let items = vec![
+            Datum {
+                value: Some(datum::Value::String("text".to_string())),
+            },
+            Datum {
+                value: Some(datum::Value::Int(123)),
+            },
+            Datum {
+                value: Some(datum::Value::Bool(true)),
+            },
+            Datum {
+                value: Some(datum::Value::Float(3.15)),
+            },
+            Datum { value: None },
+        ];
+
+        let array = DatumArray {
+            items,
+            element_type: "mixed".to_string(),
+        };
+        assert_eq!(format!("{}", array), "[text, 123, true, 3.15, NULL]");
+    }
+
+    #[test]
+    fn test_datum_array_display_nested() {
+        let inner_items = vec![
+            Datum {
+                value: Some(datum::Value::Int(1)),
+            },
+            Datum {
+                value: Some(datum::Value::Int(2)),
+            },
+        ];
+
+        let inner_array = DatumArray {
+            items: inner_items,
+            element_type: "int".to_string(),
+        };
+
+        let outer_items = vec![
+            Datum {
+                value: Some(datum::Value::String("before".to_string())),
+            },
+            Datum {
+                value: Some(datum::Value::Array(inner_array)),
+            },
+            Datum {
+                value: Some(datum::Value::String("after".to_string())),
+            },
+        ];
+
+        let outer_array = DatumArray {
+            items: outer_items,
+            element_type: "mixed".to_string(),
+        };
+
+        assert_eq!(format!("{}", outer_array), "[before, [1, 2], after]");
+    }
+
+    #[test]
+    fn test_complex_nested_structure() {
+        // Create a complex nested structure to test all display implementations
+        let mut user_fields = HashMap::new();
+        user_fields.insert(
+            "name".to_string(),
+            Datum {
+                value: Some(datum::Value::String("Alice".to_string())),
+            },
+        );
+        user_fields.insert(
+            "age".to_string(),
+            Datum {
+                value: Some(datum::Value::Int(25)),
+            },
+        );
+
+        let user_object = DatumObject {
+            fields: user_fields,
+        };
+
+        let tags_array = DatumArray {
+            items: vec![
+                Datum {
+                    value: Some(datum::Value::String("admin".to_string())),
                 },
-                ".id",
-            ),
-            (
-                make_binop_expr(BinOp::Eq, Datum::Integer(1), Datum::Integer(2)),
-                "(1 == 2)",
-            ),
-            (
-                make_binop_expr(BinOp::Ne, Datum::Integer(1), Datum::Integer(2)),
-                "(1 != 2)",
-            ),
-            (
-                make_binop_expr(BinOp::Lt, Datum::Integer(1), Datum::Integer(2)),
-                "(1 < 2)",
-            ),
-            (
-                make_binop_expr(BinOp::Le, Datum::Integer(1), Datum::Integer(2)),
-                "(1 <= 2)",
-            ),
-            (
-                make_binop_expr(BinOp::Gt, Datum::Integer(2), Datum::Integer(1)),
-                "(2 > 1)",
-            ),
-            (
-                make_binop_expr(BinOp::Ge, Datum::Integer(2), Datum::Integer(1)),
-                "(2 >= 1)",
-            ),
-            (
-                make_binop_expr(BinOp::And, Datum::Bool(true), Datum::Bool(false)),
-                "(true AND false)",
-            ),
-            (
-                make_binop_expr(BinOp::Or, Datum::Bool(true), Datum::Bool(false)),
-                "(true OR false)",
-            ),
-            (
-                make_unop_expr(UnOp::Not, Expr::Constant(Datum::Bool(true))),
-                "(NOT true)",
-            ),
-        ];
+                Datum {
+                    value: Some(datum::Value::String("user".to_string())),
+                },
+            ],
+            element_type: "string".to_string(),
+        };
 
-        for (expr, expected) in cases {
-            assert_eq!(expr.to_string(), expected);
-        }
+        let mut root_fields = HashMap::new();
+        root_fields.insert(
+            "user".to_string(),
+            Datum {
+                value: Some(datum::Value::Object(user_object)),
+            },
+        );
+        root_fields.insert(
+            "tags".to_string(),
+            Datum {
+                value: Some(datum::Value::Array(tags_array)),
+            },
+        );
+        root_fields.insert(
+            "active".to_string(),
+            Datum {
+                value: Some(datum::Value::Bool(true)),
+            },
+        );
+
+        let root_object = DatumObject {
+            fields: root_fields,
+        };
+
+        let result = format!("{}", root_object);
+
+        // Check that all components are present in the output
+        assert!(result.contains("Alice"));
+        assert!(result.contains("25"));
+        assert!(result.contains("admin"));
+        assert!(result.contains("user"));
+        assert!(result.contains("true"));
     }
 
     #[test]
-    fn test_term_type_display() {
-        let cases = vec![
-            (TermType::Datum, "Datum"),
-            (TermType::Expr, "Expr"),
-            (TermType::Eq, "Eq"),
-            (TermType::Ne, "Ne"),
-            (TermType::Lt, "Lt"),
-            (TermType::Le, "Le"),
-            (TermType::Gt, "Gt"),
-            (TermType::Ge, "Ge"),
-            (TermType::Not, "Not"),
-            (TermType::And, "And"),
-            (TermType::Or, "Or"),
-            (TermType::Database, "Database"),
-            (TermType::DatabaseCreate, "DatabaseCreate"),
-            (TermType::DatabaseDrop, "DatabaseDrop"),
-            (TermType::DatabaseList, "DatabaseList"),
-            (TermType::Table, "Table"),
-            (TermType::TableCreate, "TableCreate"),
-            (TermType::TableDrop, "TableDrop"),
-            (TermType::TableList, "TableList"),
-            (TermType::Get, "Get"),
-            (TermType::GetField, "GetField"),
-            (TermType::Filter, "Filter"),
-            (TermType::Delete, "Delete"),
-            (TermType::Insert, "Insert"),
-            (TermType::Invalid, "Invalid"),
-        ];
+    fn test_datum_with_null_values() {
+        let mut fields = HashMap::new();
+        fields.insert(
+            "null_field".to_string(),
+            Datum {
+                value: Some(datum::Value::Null(NullValue::NullValue.into())),
+            },
+        );
+        fields.insert("none_field".to_string(), Datum { value: None });
 
-        for (term_type, expected) in cases {
-            assert_eq!(term_type.to_string(), expected);
-        }
+        let object = DatumObject { fields };
+
+        let result = format!("{}", object);
+        // Both should display as NULL
+        assert!(result.contains("null_field: NULL"));
+        assert!(result.contains("none_field: NULL"));
     }
 
     #[test]
-    fn test_term_type_from() {
-        let cases: Vec<(u64, TermType)> = vec![
-            (0, TermType::Invalid),
-            (1, TermType::Datum),
-            (2, TermType::Expr),
-            (14, TermType::Database),
-            (15, TermType::Table),
-            (16, TermType::Get),
-            (17, TermType::Eq),
-            (18, TermType::Ne),
-            (19, TermType::Lt),
-            (20, TermType::Le),
-            (21, TermType::Gt),
-            (22, TermType::Ge),
-            (23, TermType::Not),
-            (31, TermType::GetField),
-            (39, TermType::Filter),
-            (54, TermType::Delete),
-            (56, TermType::Insert),
-            (57, TermType::DatabaseCreate),
-            (58, TermType::DatabaseDrop),
-            (59, TermType::DatabaseList),
-            (60, TermType::TableCreate),
-            (61, TermType::TableDrop),
-            (62, TermType::TableList),
-            (66, TermType::And),
-            (67, TermType::Or),
-            (999, TermType::Invalid),
-        ];
+    fn test_special_characters_in_strings() {
+        let value = datum::Value::String("Hello\nWorld\t\"Test\"".to_string());
+        assert_eq!(format!("{}", value), "Hello\nWorld\t\"Test\"");
 
-        for (num, expected) in cases {
-            let tt: TermType = num.into();
-            assert_eq!(tt, expected);
-        }
+        let value = datum::Value::String("UTF-8: 中文 🚀".to_string());
+        assert_eq!(format!("{}", value), "UTF-8: 中文 🚀");
+    }
+
+    #[test]
+    fn test_large_numbers() {
+        let value = datum::Value::Int(i64::MAX);
+        assert_eq!(format!("{}", value), "9223372036854775807");
+
+        let value = datum::Value::Int(i64::MIN);
+        assert_eq!(format!("{}", value), "-9223372036854775808");
+
+        let value = datum::Value::Float(f64::MAX);
+        assert_eq!(
+            format!("{}", value),
+            "179769313486231570000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+        );
+
+        let value = datum::Value::Float(f64::MIN);
+        assert_eq!(
+            format!("{}", value),
+            "-179769313486231570000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+        );
     }
 }

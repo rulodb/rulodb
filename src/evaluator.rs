@@ -1,543 +1,397 @@
-use crate::ast::{BinOp, Datum, Expr, OptArgs, Term, UnOp};
+mod cursor;
+mod database;
+mod error;
+mod expression;
+mod query;
+mod table;
+mod utils;
+
+#[cfg(test)]
+mod tests;
+
+use crate::ast::*;
 use crate::planner::PlanNode;
-use crate::storage::{
-    DEFAULT_DATABASE, Document, Result as StorageResult, StorageBackend, StorageError,
-};
-use futures_util::StreamExt;
-use serde::Serialize;
-use std::collections::BTreeMap;
-use std::future::Future;
-use std::pin::Pin;
+use crate::storage::{DEFAULT_DATABASE, StorageBackend};
 use std::sync::Arc;
 use std::time::Instant;
-use tokio_stream::wrappers::ReceiverStream;
-use uuid::Uuid;
 
-pub type Row = BTreeMap<String, Datum>;
+// Re-export commonly used types for backward compatibility
+pub use error::{EvalError, EvalResult, EvalStats};
 
-#[derive(Debug)]
-pub enum EvalError {
-    StorageError(StorageError),
-    InvalidKeyType,
-    MissingField(String),
-    InvalidInsertTarget,
-}
-
-impl std::fmt::Display for EvalError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::StorageError(e) => write!(f, "Storage error: {e}"),
-            Self::InvalidKeyType => write!(f, "Invalid key type: expected string"),
-            Self::MissingField(field) => write!(f, "Missing required field: {field}"),
-            Self::InvalidInsertTarget => write!(f, "Invalid document structure for insert"),
-        }
-    }
-}
-
-impl std::error::Error for EvalError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Self::StorageError(e) => Some(e),
-            _ => None,
-        }
-    }
-}
-
-impl From<StorageError> for EvalError {
-    fn from(e: StorageError) -> Self {
-        Self::StorageError(e)
-    }
-}
-
-#[derive(Debug, Default, Clone, Serialize)]
-pub struct EvalStats {
-    pub read_count: usize,
-    pub inserted_count: usize,
-    pub deleted_count: usize,
-    pub error_count: usize,
-    pub duration_ms: u128,
-    pub cache_hits: usize,
-    pub batch_operations: usize,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct EvalResult {
-    pub result: Datum,
-    pub stats: EvalStats,
-}
-
+/// Main evaluator that orchestrates query execution using specialized processors
 pub struct Evaluator {
-    pub storage: Arc<dyn StorageBackend + Send + Sync>,
-    pub stats: EvalStats,
+    database_ops: database::DatabaseOperations,
+    table_ops: table::TableOperations,
+    expression_eval: expression::ExpressionEvaluator,
+    query_processor: query::QueryProcessor,
+    stats: EvalStats,
+    cursor_context: Option<Cursor>,
+    skip_context: Option<u32>,
+    limit_context: Option<u32>,
 }
 
 impl Evaluator {
-    pub fn new(storage: Arc<dyn StorageBackend + Send + Sync>) -> Self {
+    /// Create a new evaluator with the given storage backend
+    pub fn new(storage: Arc<dyn StorageBackend>) -> Self {
         Self {
-            storage,
-            stats: EvalStats::default(),
+            database_ops: database::DatabaseOperations::new(storage.clone()),
+            table_ops: table::TableOperations::new(storage.clone()),
+            expression_eval: expression::ExpressionEvaluator::new(),
+            query_processor: query::QueryProcessor::new(storage),
+            stats: EvalStats::new(),
+            cursor_context: None,
+            skip_context: None,
+            limit_context: None,
         }
     }
 
+    /// Evaluate a query plan and return the result with statistics
     pub async fn eval(&mut self, plan: &PlanNode) -> Result<EvalResult, EvalError> {
         let start = Instant::now();
-        let result = self.evaluate(plan).await?;
-        self.stats.duration_ms = start.elapsed().as_millis();
+        self.stats = EvalStats::new();
+        self.skip_context = None;
+        self.limit_context = None;
 
-        Ok(EvalResult {
-            result,
-            stats: self.stats.clone(),
-        })
+        let result = self.execute_plan(plan).await?;
+        self.stats.record_duration(start.elapsed());
+
+        Ok(EvalResult::new(result, self.stats.clone()))
     }
 
-    async fn evaluate_lazy(
-        &self,
+    /// Evaluate a query with cursor context and return the result with statistics
+    pub async fn eval_with_cursor(
+        &mut self,
         plan: &PlanNode,
-        predicate: Option<Box<dyn Fn(Document) -> bool + Send + Sync>>,
-    ) -> Option<Result<ReceiverStream<StorageResult<Document>>, EvalError>> {
-        match (plan, predicate) {
-            (PlanNode::ScanTable { db, name, opt_args }, predicate) => {
-                let db = use_database(db.as_ref());
-                let start_key = opt_start_key(opt_args);
-                let batch_size = opt_batch_size(opt_args);
+        cursor: Option<Cursor>,
+    ) -> Result<EvalResult, EvalError> {
+        let start = Instant::now();
+        self.stats = EvalStats::new();
+        self.cursor_context = cursor;
+        self.skip_context = None;
+        self.limit_context = None;
 
-                let stream = self
-                    .storage
-                    .scan_table(&db, name, start_key, batch_size, predicate)
-                    .await
-                    .map_err(EvalError::from);
+        let result = self.execute_plan(plan).await?;
+        self.stats.record_duration(start.elapsed());
 
-                Some(stream)
-            }
-            _ => None,
-        }
+        Ok(EvalResult::new(result, self.stats.clone()))
     }
 
-    fn evaluate<'b>(
-        &'b mut self,
-        plan: &'b PlanNode,
-    ) -> Pin<Box<dyn Future<Output = Result<Datum, EvalError>> + Send + 'b>> {
-        Box::pin(async move {
-            match plan {
-                PlanNode::Constant(d) => Ok(d.clone()),
-                PlanNode::Eval { expr } => eval_expr(expr, &BTreeMap::new()),
-                PlanNode::SelectDatabase { name } => Ok(Datum::String(name.clone())),
-                PlanNode::CreateDatabase { name } => self.eval_create_database(name).await,
-                PlanNode::DropDatabase { name } => self.eval_drop_database(name).await,
-                PlanNode::ListDatabases => self.eval_list_databases().await,
-                PlanNode::ScanTable { db, name, opt_args } => {
-                    let db = use_database(db.as_ref());
-                    let start_key = opt_start_key(opt_args);
-                    let batch_size = opt_batch_size(opt_args);
-                    self.eval_scan_table(&db, name, start_key, batch_size).await
-                }
-                PlanNode::CreateTable { db, name, .. } => {
-                    self.eval_create_table(&use_database(db.as_ref()), name)
+    /// Execute a plan node recursively
+    async fn execute_plan(&mut self, plan: &PlanNode) -> Result<query_result::Result, EvalError> {
+        match plan {
+            // Constant values
+            PlanNode::Constant { value, .. } => Ok(query_result::Result::Literal(LiteralResult {
+                value: if value.value.is_some() {
+                    Some(value.clone())
+                } else {
+                    None
+                },
+            })),
+
+            // Database operations
+            PlanNode::CreateDatabase { name, .. } => {
+                self.database_ops
+                    .create_database(name, &mut self.stats)
+                    .await
+            }
+            PlanNode::DropDatabase { name, .. } => {
+                self.database_ops.drop_database(name, &mut self.stats).await
+            }
+            PlanNode::ListDatabases { cursor, .. } => {
+                self.database_ops
+                    .list_databases(cursor.clone(), &mut self.stats)
+                    .await
+            }
+
+            // Table operations
+            PlanNode::CreateTable { table_ref, .. } => {
+                let database = self.extract_database_name(table_ref);
+                self.table_ops
+                    .create_table(&database, &table_ref.name, &mut self.stats)
+                    .await
+            }
+            PlanNode::DropTable { table_ref, .. } => {
+                let database = self.extract_database_name(table_ref);
+                self.table_ops
+                    .drop_table(&database, &table_ref.name, &mut self.stats)
+                    .await
+            }
+            PlanNode::ListTables {
+                database_ref,
+                cursor,
+                ..
+            } => {
+                self.table_ops
+                    .list_tables(&database_ref.name, cursor.clone(), &mut self.stats)
+                    .await
+            }
+            PlanNode::TableScan {
+                table_ref,
+                cursor,
+                filter,
+                ..
+            } => {
+                let database = self.extract_database_name(table_ref);
+
+                // Create predicate if filter is provided
+                let predicate = filter.as_ref().map(|filter_expr| {
+                    let filter_clone = filter_expr.clone();
+                    Box::new(move |doc: Document| -> bool {
+                        let evaluator = expression::ExpressionEvaluator::new();
+                        match evaluator.evaluate_expression(&filter_clone, &Datum::from(doc)) {
+                            Ok(d) => matches!(d.value, Some(datum::Value::Bool(true))),
+                            Err(err) => {
+                                log::debug!("Error evaluating filter: {}", err);
+                                false
+                            }
+                        }
+                    }) as Predicate
+                });
+
+                // Determine effective cursor with proper limit handling
+                let effective_cursor = self.combine_cursor_with_context(cursor.clone());
+
+                // Only apply skip on the initial query, not on cursor continuations
+                let is_continuation = self
+                    .cursor_context
+                    .as_ref()
+                    .and_then(|c| c.start_key.as_ref())
+                    .is_some();
+
+                let skip_count = if is_continuation {
+                    None
+                } else {
+                    self.skip_context.map(|s| s as usize)
+                };
+
+                self.table_ops
+                    .scan_table(
+                        &database,
+                        &table_ref.name,
+                        effective_cursor,
+                        predicate,
+                        skip_count,
+                        &mut self.stats,
+                    )
+                    .await
+            }
+
+            // Document operations
+            PlanNode::Get { table_ref, key, .. } => {
+                let database = self.extract_database_name(table_ref);
+                self.table_ops
+                    .get_document(&database, &table_ref.name, key, &mut self.stats)
+                    .await
+            }
+            PlanNode::GetAll {
+                table_ref,
+                keys,
+                cursor,
+                ..
+            } => {
+                let database = self.extract_database_name(table_ref);
+                // Determine effective cursor with proper limit handling
+                let effective_cursor = self.combine_cursor_with_context(cursor.clone());
+
+                // Only apply skip on the initial query, not on cursor continuations
+                let is_continuation = self
+                    .cursor_context
+                    .as_ref()
+                    .and_then(|c| c.start_key.as_ref())
+                    .is_some();
+
+                let skip_count = if is_continuation {
+                    None
+                } else {
+                    self.skip_context.map(|s| s as usize)
+                };
+
+                self.table_ops
+                    .get_documents(
+                        &database,
+                        &table_ref.name,
+                        keys,
+                        effective_cursor,
+                        skip_count,
+                        &mut self.stats,
+                    )
+                    .await
+            }
+            PlanNode::Insert {
+                table_ref,
+                documents,
+                ..
+            } => {
+                let database = self.extract_database_name(table_ref);
+                self.table_ops
+                    .insert_documents(&database, &table_ref.name, documents, &mut self.stats)
+                    .await
+            }
+
+            // Query processing operations
+            PlanNode::Update { source, patch, .. } => {
+                let source_result = Box::pin(self.execute_plan(source)).await?;
+                self.query_processor
+                    .update_documents(source_result, patch, source, &mut self.stats)
+                    .await
+            }
+            PlanNode::Delete { source, .. } => {
+                let source_result = Box::pin(self.execute_plan(source)).await?;
+                self.query_processor
+                    .delete_documents(source_result, &mut self.stats)
+                    .await
+            }
+            PlanNode::Filter {
+                source, predicate, ..
+            } => {
+                let source_result = Box::pin(self.execute_plan(source)).await?;
+                self.query_processor
+                    .filter_documents(
+                        source_result,
+                        predicate,
+                        self.cursor_context.clone(),
+                        &mut self.stats,
+                    )
+                    .await
+            }
+            PlanNode::OrderBy { source, fields, .. } => {
+                let source_result = Box::pin(self.execute_plan(source)).await?;
+                self.query_processor
+                    .order_documents(
+                        source_result,
+                        fields,
+                        self.cursor_context.clone(),
+                        &mut self.stats,
+                    )
+                    .await
+            }
+            PlanNode::Limit { source, count, .. } => {
+                // Check if we can push the limit down to source
+                if self.can_push_down_to_source(source) {
+                    self.limit_context = Some(*count);
+                    let source_result = Box::pin(self.execute_plan(source)).await?;
+
+                    // Even when pushed down, we need to wrap the result in a LimitResult
+                    // to maintain consistent API behavior
+                    self.query_processor
+                        .apply_limit(
+                            source_result,
+                            u32::MAX, // We already limited at the storage layer
+                            self.cursor_context.clone(),
+                            &mut self.stats,
+                        )
+                        .await
+                } else {
+                    // Execute the source first, then apply limit
+                    let source_result = Box::pin(self.execute_plan(source)).await?;
+                    self.query_processor
+                        .apply_limit(
+                            source_result,
+                            *count,
+                            self.cursor_context.clone(),
+                            &mut self.stats,
+                        )
                         .await
                 }
-                PlanNode::DropTable { db, name } => {
-                    self.eval_drop_table(&use_database(db.as_ref()), name).await
-                }
-                PlanNode::ListTables { db } => {
-                    self.eval_list_tables(&use_database(db.as_ref())).await
-                }
-                PlanNode::GetByKey { db, table, key, .. } => {
-                    self.eval_get(&use_database(db.as_ref()), table, key).await
-                }
-                PlanNode::Filter {
-                    source, predicate, ..
-                } => self.eval_filter(source, predicate).await,
-                PlanNode::Insert {
-                    table, documents, ..
-                } => self.eval_insert(table, documents).await,
-                PlanNode::Delete { source, .. } => self.eval_delete(source).await,
             }
-        })
-    }
+            PlanNode::Skip { source, count, .. } => {
+                // If we have a cursor context with a start_key, this is a continuation query
+                // Skip should only be applied on the initial query, not on continuations
+                let is_continuation = self
+                    .cursor_context
+                    .as_ref()
+                    .and_then(|c| c.start_key.as_ref())
+                    .is_some();
 
-    async fn eval_create_database(&mut self, name: &str) -> Result<Datum, EvalError> {
-        self.storage
-            .create_database(name)
-            .await
-            .map_err(EvalError::from)?;
-        self.stats.inserted_count += 1;
-        Ok(Datum::Null)
-    }
+                let skip_count = if is_continuation { 0 } else { *count };
 
-    async fn eval_drop_database(&mut self, name: &str) -> Result<Datum, EvalError> {
-        self.storage
-            .drop_database(name)
-            .await
-            .map_err(EvalError::from)?;
-        self.stats.deleted_count += 1;
-        Ok(Datum::Null)
-    }
+                if self.can_push_down_to_source(source) && skip_count > 0 {
+                    self.skip_context = Some(skip_count);
+                    let source_result = Box::pin(self.execute_plan(source)).await?;
 
-    async fn eval_list_databases(&mut self) -> Result<Datum, EvalError> {
-        let databases = self
-            .storage
-            .list_databases()
-            .await
-            .map_err(EvalError::from)?;
-
-        self.stats.read_count += databases.len();
-        let result: Vec<Datum> = databases.into_iter().map(Datum::String).collect();
-
-        Ok(Datum::Array(result))
-    }
-
-    async fn eval_scan_table(
-        &mut self,
-        db: &str,
-        name: &str,
-        start_key: Option<String>,
-        batch_size: Option<usize>,
-    ) -> Result<Datum, EvalError> {
-        let mut stream = self
-            .storage
-            .scan_table(db, name, start_key, batch_size, None)
-            .await
-            .map_err(EvalError::from)?;
-
-        let mut result = Vec::new();
-        let mut batch_count = 0;
-
-        while let Some(doc_result) = stream.next().await {
-            match doc_result {
-                Ok(doc) => {
-                    self.stats.read_count += 1;
-                    result.push(Datum::Object(doc));
-                    batch_count += 1;
-                }
-                Err(e) => {
-                    self.stats.error_count += 1;
-                    return Err(EvalError::StorageError(e));
-                }
-            }
-        }
-
-        if batch_count > 0 {
-            self.stats.batch_operations += 1;
-        }
-
-        Ok(Datum::Array(result))
-    }
-
-    async fn eval_create_table(&mut self, db: &str, name: &str) -> Result<Datum, EvalError> {
-        self.storage.create_table(db, name).await?;
-        self.stats.inserted_count += 1;
-        Ok(Datum::Null)
-    }
-
-    async fn eval_drop_table(&mut self, db: &str, name: &str) -> Result<Datum, EvalError> {
-        self.storage.drop_table(db, name).await?;
-        self.stats.deleted_count += 1;
-        Ok(Datum::Null)
-    }
-
-    async fn eval_list_tables(&mut self, db: &str) -> Result<Datum, EvalError> {
-        let tables = self.storage.list_tables(db).await?;
-
-        self.stats.read_count += tables.len();
-        let result: Vec<Datum> = tables.into_iter().map(Datum::String).collect();
-
-        Ok(Datum::Array(result))
-    }
-
-    async fn eval_get(&mut self, db: &str, table: &str, key: &Datum) -> Result<Datum, EvalError> {
-        let Datum::String(key) = key else {
-            return Err(EvalError::InvalidKeyType);
-        };
-
-        if let Some(doc) = self.storage.get(db, table, key).await? {
-            self.stats.read_count += 1;
-            self.stats.cache_hits += 1; // Assume cache hit for single key lookups
-            Ok(Datum::Object(doc))
-        } else {
-            Ok(Datum::Null)
-        }
-    }
-
-    async fn eval_filter(
-        &mut self,
-        source: &PlanNode,
-        predicate: &Expr,
-    ) -> Result<Datum, EvalError> {
-        let mut result = Vec::new();
-
-        let predicate_clone = Arc::new(predicate.clone());
-        let lazy_predicate = {
-            let predicate = Arc::clone(&predicate_clone);
-            Box::new(move |doc: Document| {
-                eval_expr(&predicate, &doc).is_ok_and(|datum| matches!(datum, Datum::Bool(true)))
-            })
-        };
-
-        if let Some(Ok(mut stream)) = self.evaluate_lazy(source, Some(lazy_predicate)).await {
-            while let Some(doc_result) = stream.next().await {
-                match doc_result {
-                    Ok(doc) => {
-                        self.stats.read_count += 1;
-                        result.push(Datum::Object(doc));
-                    }
-                    Err(e) => {
-                        self.stats.error_count += 1;
-                        return Err(EvalError::StorageError(e));
-                    }
-                }
-            }
-        } else if let Datum::Array(rows) = self.evaluate(source).await? {
-            for row in rows {
-                if let Datum::Object(doc) = &row {
-                    match eval_expr(&predicate_clone, doc) {
-                        Ok(Datum::Bool(true)) => {
-                            self.stats.read_count += 1;
-                            result.push(row);
-                        }
-                        Err(e) => {
-                            self.stats.error_count += 1;
-                            return Err(e);
-                        }
-                        _ => {} // Filter out non-matching rows
-                    }
-                }
-            }
-        }
-
-        Ok(Datum::Array(result))
-    }
-
-    async fn eval_insert(
-        &mut self,
-        table: &PlanNode,
-        documents: &[Datum],
-    ) -> Result<Datum, EvalError> {
-        let PlanNode::ScanTable { db, name, .. } = table else {
-            self.stats.error_count += 1;
-            return Err(EvalError::InvalidInsertTarget);
-        };
-
-        let db = &use_database(db.as_ref());
-        let mut inserted = Vec::new();
-        let mut batch_docs = Vec::new();
-
-        for d in documents {
-            match d.clone() {
-                Datum::Object(mut obj) => {
-                    obj.insert("table".to_string(), Datum::String(name.clone()));
-
-                    let key = if let Some(Datum::String(id)) = obj.get("id") {
-                        id.clone()
-                    } else {
-                        let id = Uuid::new_v4().to_string();
-                        obj.insert("id".to_string(), Datum::String(id.clone()));
-                        id
-                    };
-
-                    inserted.push(Datum::Object(obj.clone()));
-                    batch_docs.push((key, obj));
-                }
-                _ => {
-                    self.stats.error_count += 1;
-                }
-            }
-        }
-
-        if batch_docs.len() > 1 {
-            match self.storage.put_batch(db, name, &batch_docs).await {
-                Ok(()) => {
-                    self.stats.inserted_count += batch_docs.len();
-                    self.stats.batch_operations += 1;
-                }
-                Err(_) => {
-                    self.stats.error_count += batch_docs.len();
-                }
-            }
-        } else if let Some((key, obj)) = batch_docs.into_iter().next() {
-            match self.storage.put(db, name, &key, &obj).await {
-                Ok(()) => {
-                    self.stats.inserted_count += 1;
-                }
-                Err(_) => {
-                    self.stats.error_count += 1;
-                }
-            }
-        }
-
-        Ok(Datum::Array(inserted))
-    }
-
-    async fn eval_delete(&mut self, source: &PlanNode) -> Result<Datum, EvalError> {
-        let mut deleted = 0;
-        let mut errors = 0;
-
-        let db = use_database(extract_db_from_plan(source));
-
-        if let Some(Ok(mut stream)) = self.evaluate_lazy(source, None).await {
-            while let Some(doc_result) = stream.next().await {
-                match doc_result {
-                    Ok(doc) => {
-                        match (
-                            extract_document_key_value(&doc, "table"),
-                            extract_document_key_value(&doc, "id"),
-                        ) {
-                            (Ok(table), Ok(key)) => {
-                                if self.storage.delete(&db, &table, &key).await.is_ok() {
-                                    deleted += 1;
-                                } else {
-                                    errors += 1;
-                                }
-                            }
-                            _ => errors += 1,
-                        }
-                    }
-                    Err(_) => errors += 1,
-                }
-            }
-        } else {
-            let result = self.evaluate(source).await?;
-            let documents = match result {
-                Datum::Array(arr) => arr,
-                Datum::Object(_) => vec![result],
-                _ => vec![],
-            };
-
-            for row in documents {
-                if let Datum::Object(doc) = row {
-                    match (
-                        extract_document_key_value(&doc, "table"),
-                        extract_document_key_value(&doc, "id"),
-                    ) {
-                        (Ok(table), Ok(key)) => {
-                            if self.storage.delete(&db, &table, &key).await.is_ok() {
-                                deleted += 1;
-                            } else {
-                                errors += 1;
-                            }
-                        }
-                        _ => errors += 1,
-                    }
+                    // Even when pushed down, we need to wrap the result in a SkipResult
+                    // to maintain consistent API behavior
+                    self.query_processor
+                        .apply_skip(
+                            source_result,
+                            0, // We already skipped at the storage layer, so skip 0 here
+                            self.cursor_context.clone(),
+                            &mut self.stats,
+                        )
+                        .await
                 } else {
-                    errors += 1;
+                    // Execute the source first, then apply skip
+                    let source_result = Box::pin(self.execute_plan(source)).await?;
+                    self.query_processor
+                        .apply_skip(
+                            source_result,
+                            skip_count,
+                            self.cursor_context.clone(),
+                            &mut self.stats,
+                        )
+                        .await
                 }
             }
-        }
-
-        self.stats.deleted_count += deleted;
-        self.stats.error_count += errors;
-
-        if deleted > 0 {
-            self.stats.batch_operations += 1;
-        }
-
-        Ok(Datum::Null)
-    }
-}
-
-fn eval_expr(expr: &Expr, row: &Row) -> Result<Datum, EvalError> {
-    match expr {
-        Expr::Constant(d) => Ok(d.clone()),
-        Expr::Field { name, separator } => {
-            Ok(extract_field(row, name, separator.clone()).unwrap_or(Datum::Null))
-        }
-        Expr::BinaryOp { op, left, right } => {
-            let left_val = eval_expr(left, row)?;
-            let right_val = eval_expr(right, row)?;
-
-            match (op, left_val, right_val) {
-                (BinOp::Eq, a, b) => Ok(Datum::Bool(a == b)),
-                (BinOp::Ne, a, b) => Ok(Datum::Bool(a != b)),
-                (BinOp::Lt, Datum::Decimal(a), Datum::Decimal(b)) => Ok(Datum::Bool(a < b)),
-                (BinOp::Le, Datum::Decimal(a), Datum::Decimal(b)) => Ok(Datum::Bool(a <= b)),
-                (BinOp::Gt, Datum::Decimal(a), Datum::Decimal(b)) => Ok(Datum::Bool(a > b)),
-                (BinOp::Ge, Datum::Decimal(a), Datum::Decimal(b)) => Ok(Datum::Bool(a >= b)),
-                (BinOp::And, Datum::Bool(a), Datum::Bool(b)) => Ok(Datum::Bool(a && b)),
-                (BinOp::Or, Datum::Bool(a), Datum::Bool(b)) => Ok(Datum::Bool(a || b)),
-
-                (BinOp::Lt, Datum::String(a), Datum::String(b)) => Ok(Datum::Bool(a < b)),
-                (BinOp::Le, Datum::String(a), Datum::String(b)) => Ok(Datum::Bool(a <= b)),
-                (BinOp::Gt, Datum::String(a), Datum::String(b)) => Ok(Datum::Bool(a > b)),
-                (BinOp::Ge, Datum::String(a), Datum::String(b)) => Ok(Datum::Bool(a >= b)),
-
-                (BinOp::Lt, Datum::Integer(a), Datum::Integer(b)) => Ok(Datum::Bool(a < b)),
-                (BinOp::Le, Datum::Integer(a), Datum::Integer(b)) => Ok(Datum::Bool(a <= b)),
-                (BinOp::Gt, Datum::Integer(a), Datum::Integer(b)) => Ok(Datum::Bool(a > b)),
-                (BinOp::Ge, Datum::Integer(a), Datum::Integer(b)) => Ok(Datum::Bool(a >= b)),
-                _ => Ok(Datum::Null),
+            PlanNode::Count { source, .. } => {
+                self.query_processor
+                    .count_documents_streaming(source, &mut self.stats)
+                    .await
             }
+
+            // Subqueries
+            PlanNode::Subquery { query, .. } => Box::pin(self.execute_plan(query)).await,
         }
-        Expr::UnaryOp { op, expr } => {
-            let val = eval_expr(expr, row)?;
-            match (op, val) {
-                (UnOp::Not, Datum::Bool(b)) => Ok(Datum::Bool(!b)),
-                _ => Ok(Datum::Null),
+    }
+
+    /// Extract database name from table reference, using default if not specified
+    fn extract_database_name(&self, table_ref: &TableRef) -> String {
+        table_ref
+            .database
+            .as_ref()
+            .map(|d| d.name.clone())
+            .unwrap_or_else(|| DEFAULT_DATABASE.to_string())
+    }
+
+    /// Get current evaluation statistics
+    pub fn get_stats(&self) -> &EvalStats {
+        &self.stats
+    }
+
+    /// Reset evaluation statistics
+    pub fn reset_stats(&mut self) {
+        self.stats = EvalStats::new();
+    }
+
+    /// Check if we can push skip/limit down to the source operation
+    fn can_push_down_to_source(&self, source: &PlanNode) -> bool {
+        matches!(source, PlanNode::TableScan { .. } | PlanNode::GetAll { .. })
+    }
+
+    /// Combine cursor context with skip/limit context
+    fn combine_cursor_with_context(&self, plan_cursor: Option<Cursor>) -> Option<Cursor> {
+        let base_cursor = self.cursor_context.clone().or(plan_cursor);
+
+        match (base_cursor, self.limit_context) {
+            (Some(mut cursor), Some(limit)) => {
+                // Use the minimum of limit and batch_size
+                let effective_limit = match cursor.batch_size {
+                    Some(batch_size) => std::cmp::min(batch_size, limit),
+                    None => limit,
+                };
+                cursor.batch_size = Some(effective_limit);
+                Some(cursor)
             }
-        }
-    }
-}
-
-#[inline]
-fn use_database(db: Option<&String>) -> String {
-    db.cloned().unwrap_or_else(|| DEFAULT_DATABASE.to_string())
-}
-
-fn extract_db_from_plan(plan: &PlanNode) -> Option<&String> {
-    match plan {
-        PlanNode::ScanTable { db, .. } => db.as_ref(),
-        PlanNode::Filter { source, .. } => extract_db_from_plan(source),
-        _ => None,
-    }
-}
-
-fn extract_document_key_value(doc: &Document, key: &str) -> Result<String, EvalError> {
-    match doc.get(key) {
-        Some(Datum::String(s)) => Ok(s.clone()),
-        Some(_) => Err(EvalError::InvalidKeyType),
-        None => Err(EvalError::MissingField(key.to_string())),
-    }
-}
-
-fn extract_field(doc: &Document, path: &str, separator: Option<String>) -> Option<Datum> {
-    let separator = separator.unwrap_or_else(|| ".".to_string());
-    let parts: Vec<&str> = path.split(&separator).collect();
-
-    let mut current_value = None;
-    let mut current_doc = doc;
-
-    for (i, part) in parts.iter().enumerate() {
-        match current_doc.get(*part) {
-            Some(Datum::Object(obj)) if i < parts.len() - 1 => {
-                current_doc = obj;
-            }
-            Some(datum) if i == parts.len() - 1 => {
-                current_value = Some(datum.clone());
-                break;
-            }
-            _ => return None,
+            (None, Some(limit)) => Some(Cursor::new(None, Some(limit))),
+            (cursor, None) => cursor,
         }
     }
 
-    current_value
-}
-
-#[inline]
-fn opt_start_key(opt_args: &OptArgs) -> Option<String> {
-    opt_args.get("start_key").and_then(|term| {
-        if let Term::Datum(Datum::String(s)) = term {
-            Some(s.clone())
-        } else {
-            None
-        }
-    })
-}
-
-#[inline]
-fn opt_batch_size(opt_args: &OptArgs) -> Option<usize> {
-    opt_args.get("batch_size").and_then(|term| {
-        if let Term::Datum(Datum::Integer(n)) = term {
-            (*n).try_into().ok()
-        } else {
-            None
-        }
-    })
+    /// Evaluate an expression in a given context
+    pub fn evaluate_expression(
+        &self,
+        expr: &Expression,
+        context: &Datum,
+    ) -> Result<Datum, EvalError> {
+        self.expression_eval.evaluate_expression(expr, context)
+    }
 }

@@ -1,271 +1,349 @@
-import { Client, r, TermType } from '../src/index';
+import { Connection } from '../src/connection';
+import { r, RQuery } from '../src/query';
 
-// Mock the client
-jest.mock('../src/client');
+// Mock the Connection class
+jest.mock('../src/connection');
 
 describe('Database Operations', () => {
-  let mockClient: jest.Mocked<Client>;
+  let mockConnection: jest.Mocked<Connection>;
 
   beforeEach(() => {
-    mockClient = {
-      send: jest.fn(),
-      close: jest.fn()
+    jest.clearAllMocks();
+    mockConnection = {
+      query: jest.fn(),
+      connect: jest.fn(),
+      disconnect: jest.fn(),
+      isConnected: jest.fn().mockReturnValue(true),
+      on: jest.fn(),
+      off: jest.fn()
     } as any;
   });
 
-  describe('Database creation and management', () => {
-    it('should create r.db() with default database name', () => {
-      const db = r.db();
-      expect(db).toBeDefined();
-      expect(db._context).toBe('database');
-
-      const ast = db.toAST();
-      expect(ast[0]).toBe(TermType.Database);
-      expect(ast[1]).toEqual(['default']);
+  describe('db()', () => {
+    it('should create a database query with default name', () => {
+      const query = r.db();
+      expect(query).toBeInstanceOf(RQuery);
+      expect(query._dbName).toBe('default');
     });
 
-    it('should create r.db() with specified database name', () => {
-      const db = r.db('mydb');
-      expect(db).toBeDefined();
-      expect(db._context).toBe('database');
-
-      const ast = db.toAST();
-      expect(ast[0]).toBe(TermType.Database);
-      expect(ast[1]).toEqual(['mydb']);
+    it('should create a database query with specified name', () => {
+      const query = r.db('mydb');
+      expect(query).toBeInstanceOf(RQuery);
+      expect(query._dbName).toBe('mydb');
     });
 
-    it('should create database creation term', () => {
-      const createDb = r.createDatabase('newdb');
-      expect(createDb).toBeDefined();
-      expect(createDb._context).toBe('database');
-
-      const ast = createDb.toAST();
-      expect(ast[0]).toBe(TermType.DatabaseCreate);
-      expect(ast[1]).toEqual(['newdb']);
+    it('should create a database query with correct state type', () => {
+      const query = r.db('testdb');
+      // The state should be DatabaseQuery type
+      expect(query).toBeInstanceOf(RQuery);
     });
 
-    it('should create database drop term', () => {
-      const dropDb = r.dropDatabase('olddb');
-      expect(dropDb).toBeDefined();
-      expect(dropDb._context).toBe('database');
-
-      const ast = dropDb.toAST();
-      expect(ast[0]).toBe(TermType.DatabaseDrop);
-      expect(ast[1]).toEqual(['olddb']);
-    });
-
-    it('should create database list term', () => {
-      const listDbs = r.listDatabases();
-      expect(listDbs).toBeDefined();
-      expect(listDbs._context).toBe('database');
-
-      const ast = listDbs.toAST();
-      expect(ast[0]).toBe(TermType.DatabaseList);
-      expect(ast[1]).toEqual([]);
+    it('should allow chaining table operations', () => {
+      const query = r.db('mydb').table('users');
+      expect(query).toBeInstanceOf(RQuery);
     });
   });
 
-  describe('Database methods', () => {
-    let db: ReturnType<typeof r.db>;
-
-    beforeEach(() => {
-      db = r.db('testdb');
+  describe('dbCreate()', () => {
+    it('should create database creation query', () => {
+      const query = r.dbCreate('newdb');
+      expect(query).toBeInstanceOf(RQuery);
+      expect(query._query).toEqual({
+        databaseCreate: { name: 'newdb' }
+      });
     });
 
-    it('should create table reference', () => {
-      const table = db.table('users');
-      expect(table).toBeDefined();
-      expect(table._context).toBe('table');
+    it('should execute database creation successfully', async () => {
+      const mockResult = {
+        result: { created: 1 }
+      };
+      mockConnection.query.mockResolvedValue(mockResult);
 
-      const ast = table.toAST();
-      expect(ast[0]).toBe(TermType.Table);
-      expect(ast[1]).toHaveLength(2);
-      expect(ast[1][1]).toBe('users');
+      const query = r.dbCreate('newdb');
+      const result = await query.run(mockConnection);
+
+      expect(mockConnection.query).toHaveBeenCalledWith({
+        databaseCreate: { name: 'newdb' }
+      });
+      expect(result).toEqual({ created: 1 });
     });
 
-    it('should create table list query', () => {
-      const listTables = db.listTables();
-      expect(listTables).toBeDefined();
-      expect(typeof listTables.run).toBe('function');
-      expect(typeof listTables.debug).toBe('function');
+    it('should handle database creation errors', async () => {
+      const error = new Error('Database already exists');
+      mockConnection.query.mockRejectedValue(error);
 
-      const ast = listTables.toAST();
-      expect(ast[0]).toBe(TermType.TableList);
+      const query = r.dbCreate('existingdb');
+
+      await expect(query.run(mockConnection)).rejects.toThrow('Database already exists');
     });
 
-    it('should create table creation query', () => {
-      const createTable = db.createTable('newtable');
-      expect(createTable).toBeDefined();
-      expect(typeof createTable.run).toBe('function');
-      expect(typeof createTable.debug).toBe('function');
-
-      const ast = createTable.toAST();
-      expect(ast[0]).toBe(TermType.TableCreate);
-      expect(ast[1]).toHaveLength(2);
-      expect(ast[1][1]).toBe('newtable');
-    });
-
-    it('should create table drop query', () => {
-      const dropTable = db.dropTable('oldtable');
-      expect(dropTable).toBeDefined();
-      expect(typeof dropTable.run).toBe('function');
-      expect(typeof dropTable.debug).toBe('function');
-
-      const ast = dropTable.toAST();
-      expect(ast[0]).toBe(TermType.TableDrop);
-      expect(ast[1]).toHaveLength(2);
-      expect(ast[1][1]).toBe('oldtable');
-    });
-
-    it('should execute database query', async () => {
-      mockClient.send.mockResolvedValue({ result: 'success' });
-
-      const result = await db.run(mockClient);
-      expect(result).toEqual({ result: 'success' });
-      expect(mockClient.send).toHaveBeenCalledWith(db.toAST());
-    });
-
-    it('should debug database query', () => {
-      const consoleSpy = jest.spyOn(console, 'dir').mockImplementation();
-
-      const debugResult = db.debug();
-      expect(debugResult).toBe(db);
-      expect(consoleSpy).toHaveBeenCalledWith(db.toAST(), { depth: null });
-
-      consoleSpy.mockRestore();
+    it('should create query with correct return type', () => {
+      const query = r.dbCreate('newdb');
+      // Should return ValueQuery<{ created: number }>
+      expect(query).toBeInstanceOf(RQuery);
     });
   });
 
-  describe('Table queries execution', () => {
-    let db: ReturnType<typeof r.db>;
-
-    beforeEach(() => {
-      db = r.db('testdb');
+  describe('dbDrop()', () => {
+    it('should create database drop query', () => {
+      const query = r.dbDrop('olddb');
+      expect(query).toBeInstanceOf(RQuery);
+      expect(query._query).toEqual({
+        databaseDrop: { name: 'olddb' }
+      });
     });
 
-    it('should execute listTables query', async () => {
-      const expectedTables = ['users', 'posts', 'comments'];
-      mockClient.send.mockResolvedValue(expectedTables);
+    it('should execute database drop successfully', async () => {
+      const mockResult = {
+        result: { dropped: 1 }
+      };
+      mockConnection.query.mockResolvedValue(mockResult);
 
-      const listTablesQuery = db.listTables();
-      const result = await listTablesQuery.run(mockClient);
+      const query = r.dbDrop('olddb');
+      const result = await query.run(mockConnection);
 
-      expect(result).toEqual(expectedTables);
-      expect(mockClient.send).toHaveBeenCalledWith(listTablesQuery.toAST());
+      expect(mockConnection.query).toHaveBeenCalledWith({
+        databaseDrop: { name: 'olddb' }
+      });
+      expect(result).toEqual({ dropped: 1 });
     });
 
-    it('should execute listTables query with generic type', async () => {
-      const expectedResult = { tables: ['users'] };
-      mockClient.send.mockResolvedValue(expectedResult);
+    it('should handle database drop errors', async () => {
+      const error = new Error('Database not found');
+      mockConnection.query.mockRejectedValue(error);
 
-      const listTablesQuery = db.listTables();
-      const result = await listTablesQuery.run<typeof expectedResult>(mockClient);
+      const query = r.dbDrop('nonexistent');
 
-      expect(result).toEqual(expectedResult);
+      await expect(query.run(mockConnection)).rejects.toThrow('Database not found');
     });
 
-    it('should execute createTable query', async () => {
-      const expectedResult = { created: true };
-      mockClient.send.mockResolvedValue(expectedResult);
-
-      const createTableQuery = db.createTable('newtable');
-      const result = await createTableQuery.run(mockClient);
-
-      expect(result).toEqual(expectedResult);
-      expect(mockClient.send).toHaveBeenCalledWith(createTableQuery.toAST());
-    });
-
-    it('should execute dropTable query', async () => {
-      const expectedResult = { dropped: true };
-      mockClient.send.mockResolvedValue(expectedResult);
-
-      const dropTableQuery = db.dropTable('oldtable');
-      const result = await dropTableQuery.run(mockClient);
-
-      expect(result).toEqual(expectedResult);
-      expect(mockClient.send).toHaveBeenCalledWith(dropTableQuery.toAST());
-    });
-
-    it('should debug table queries', () => {
-      const consoleSpy = jest.spyOn(console, 'dir').mockImplementation();
-
-      const listTablesQuery = db.listTables();
-      const debugResult = listTablesQuery.debug();
-
-      expect(consoleSpy).toHaveBeenCalledWith(listTablesQuery.toAST(), { depth: null });
-      expect(debugResult).toBeInstanceOf(Object);
-      expect(typeof debugResult.run).toBe('function');
-
-      consoleSpy.mockRestore();
+    it('should create query with correct return type', () => {
+      const query = r.dbDrop('olddb');
+      // Should return ValueQuery<{ dropped: number }>
+      expect(query).toBeInstanceOf(RQuery);
     });
   });
 
-  describe('Error handling', () => {
-    let db: ReturnType<typeof r.db>;
-
-    beforeEach(() => {
-      db = r.db('testdb');
+  describe('dbList()', () => {
+    it('should create database list query', () => {
+      const query = r.dbList();
+      expect(query).toBeInstanceOf(RQuery);
+      expect(query._query).toEqual({
+        databaseList: {}
+      });
     });
 
-    it('should handle database query execution errors', async () => {
-      const error = new Error('Database connection failed');
-      mockClient.send.mockRejectedValue(error);
+    it('should execute database list successfully', async () => {
+      const mockResult = {
+        items: ['db1', 'db2', 'db3'],
+        cursor: undefined
+      };
+      mockConnection.query.mockResolvedValue(mockResult);
 
-      await expect(db.run(mockClient)).rejects.toThrow('Database connection failed');
+      const query = r.dbList();
+      const result = await query.run(mockConnection);
+
+      expect(mockConnection.query).toHaveBeenCalledWith({
+        databaseList: {}
+      });
+      expect(result).toBeDefined();
     });
 
-    it('should handle table operation errors', async () => {
-      const error = new Error('Table creation failed');
-      mockClient.send.mockRejectedValue(error);
-
-      const createTableQuery = db.createTable('newtable');
-      await expect(createTableQuery.run(mockClient)).rejects.toThrow('Table creation failed');
-    });
-  });
-
-  describe('Complex database operations', () => {
-    it('should chain database and table operations', () => {
-      const table = r.db('myapp').table('users');
-      expect(table).toBeDefined();
-      expect(table._context).toBe('table');
-
-      const ast = table.toAST();
-      expect(ast[0]).toBe(TermType.Table);
-
-      // Check that the database is properly nested
-      const dbArg = ast[1][0];
-      // The argument should be resolved to its AST form
-      if (Array.isArray(dbArg)) {
-        expect(dbArg[0]).toBe(TermType.Database);
-        expect(dbArg[1]).toEqual(['myapp']);
-      } else {
-        expect(dbArg).toHaveProperty('toAST');
-        if (typeof dbArg === 'object' && dbArg && 'toAST' in dbArg) {
-          const dbAst = (dbArg as any).toAST();
-          expect(dbAst[0]).toBe(TermType.Database);
-          expect(dbAst[1]).toEqual(['myapp']);
+    it('should handle paginated database list', async () => {
+      const mockResult = {
+        items: ['db1', 'db2'],
+        cursor: { startKey: 'db2', batchSize: 50 },
+        options: {
+          explain: false,
+          timeoutMs: 0
         }
-      }
-    });
+      };
+      mockConnection.query.mockResolvedValue(mockResult);
 
-    it('should handle multiple database operations', () => {
-      const operations = [
-        r.createDatabase('db1'),
-        r.createDatabase('db2'),
-        r.dropDatabase('olddb')
-      ];
+      const query = r.dbList();
+      const result = await query.run(mockConnection, { batchSize: 50 });
 
-      operations.forEach((op, index) => {
-        expect(op).toBeDefined();
-        expect(op._context).toBe('database');
-
-        const ast = op.toAST();
-        if (index < 2) {
-          expect(ast[0]).toBe(TermType.DatabaseCreate);
-        } else {
-          expect(ast[0]).toBe(TermType.DatabaseDrop);
+      expect(mockConnection.query).toHaveBeenCalledWith({
+        databaseList: {},
+        cursor: { startKey: undefined, batchSize: 50 },
+        options: {
+          explain: false,
+          timeoutMs: 0
         }
       });
+      expect(result).toBeDefined();
+    });
+
+    it('should handle database list errors', async () => {
+      const error = new Error('Insufficient permissions');
+      mockConnection.query.mockRejectedValue(error);
+
+      const query = r.dbList();
+
+      await expect(query.run(mockConnection)).rejects.toThrow('Insufficient permissions');
+    });
+
+    it('should create query with correct return type', () => {
+      const query = r.dbList();
+      // Should return ArrayQuery<string>
+      expect(query).toBeInstanceOf(RQuery);
+    });
+  });
+
+  describe('database query chaining', () => {
+    it('should allow chaining from db() to table operations', () => {
+      const query = r.db('mydb').table('users');
+      expect(query._dbName).toBe('mydb');
+      expect(query._query).toEqual({
+        table: {
+          table: {
+            database: { name: 'mydb' },
+            name: 'users'
+          }
+        }
+      });
+    });
+
+    it('should allow chaining from db() to tableCreate', () => {
+      const query = r.db('mydb').tableCreate('newtable');
+      expect(query._dbName).toBe('mydb');
+      expect(query._query).toEqual({
+        tableCreate: {
+          table: {
+            database: { name: 'mydb' },
+            name: 'newtable'
+          }
+        }
+      });
+    });
+
+    it('should allow chaining from db() to tableDrop', () => {
+      const query = r.db('mydb').tableDrop('oldtable');
+      expect(query._dbName).toBe('mydb');
+      expect(query._query).toEqual({
+        tableDrop: {
+          table: {
+            database: { name: 'mydb' },
+            name: 'oldtable'
+          }
+        }
+      });
+    });
+
+    it('should allow chaining from db() to tableList', () => {
+      const query = r.db('mydb').tableList();
+      expect(query._dbName).toBe('mydb');
+      expect(query._query).toEqual({
+        tableList: {
+          database: { name: 'mydb' }
+        }
+      });
+    });
+  });
+
+  describe('database query execution with options', () => {
+    it('should pass query options to database creation', async () => {
+      const mockResult = { result: { created: 1 } };
+      mockConnection.query.mockResolvedValue(mockResult);
+
+      const query = r.dbCreate('newdb');
+      await query.run(mockConnection, { timeout: 5000, explain: true });
+
+      expect(mockConnection.query).toHaveBeenCalledWith({
+        databaseCreate: { name: 'newdb' },
+        options: {
+          timeoutMs: 5000,
+          explain: true
+        }
+      });
+    });
+
+    it('should pass query options to database drop', async () => {
+      const mockResult = { result: { dropped: 1 } };
+      mockConnection.query.mockResolvedValue(mockResult);
+
+      const query = r.dbDrop('olddb');
+      await query.run(mockConnection, { timeout: 3000 });
+
+      expect(mockConnection.query).toHaveBeenCalledWith({
+        databaseDrop: { name: 'olddb' },
+        options: {
+          timeoutMs: 3000,
+          explain: false
+        }
+      });
+    });
+
+    it('should pass cursor options to database list', async () => {
+      const mockResult = {
+        items: ['db1', 'db2'],
+        cursor: { startKey: 'db2', batchSize: 10 },
+        options: {
+          explain: false,
+          timeoutMs: 0
+        }
+      };
+      mockConnection.query.mockResolvedValue(mockResult);
+
+      const query = r.dbList();
+      await query.run(mockConnection, { batchSize: 10, startKey: 'db1' });
+
+      expect(mockConnection.query).toHaveBeenCalledWith({
+        databaseList: {},
+        cursor: {
+          startKey: 'db1',
+          batchSize: 10
+        },
+        options: {
+          explain: false,
+          timeoutMs: 0
+        }
+      });
+    });
+  });
+
+  describe('error handling', () => {
+    it('should handle connection errors for dbCreate', async () => {
+      mockConnection.query.mockRejectedValue(new Error('Connection lost'));
+
+      const query = r.dbCreate('newdb');
+      await expect(query.run(mockConnection)).rejects.toThrow('Connection lost');
+    });
+
+    it('should handle server errors for dbDrop', async () => {
+      const serverError = {
+        code: 500,
+        message: 'Internal server error',
+        type: 'INTERNAL_ERROR'
+      };
+      mockConnection.query.mockRejectedValue(serverError);
+
+      const query = r.dbDrop('db');
+      await expect(query.run(mockConnection)).rejects.toEqual(serverError);
+    });
+
+    it('should handle permission errors for dbList', async () => {
+      const permissionError = new Error('Access denied');
+      mockConnection.query.mockRejectedValue(permissionError);
+
+      const query = r.dbList();
+      await expect(query.run(mockConnection)).rejects.toThrow('Access denied');
+    });
+  });
+
+  describe('type safety', () => {
+    it('should maintain correct types through database operations', () => {
+      // Test that TypeScript types are maintained correctly
+      const dbQuery = r.db('test');
+      const createQuery = r.dbCreate('test');
+      const dropQuery = r.dbDrop('test');
+      const listQuery = r.dbList();
+
+      // These should all be RQuery instances with correct type parameters
+      expect(dbQuery).toBeInstanceOf(RQuery);
+      expect(createQuery).toBeInstanceOf(RQuery);
+      expect(dropQuery).toBeInstanceOf(RQuery);
+      expect(listQuery).toBeInstanceOf(RQuery);
     });
   });
 });

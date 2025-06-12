@@ -1,128 +1,171 @@
-import { createPool, Options as PoolOptions, Pool } from 'generic-pool';
-import { decode, encode } from 'msgpackr';
-import { connect, Socket } from 'net';
+import { Connection, ConnectionOptions } from './connection';
+import { RQuery } from './query';
+import { Query } from './rulo';
+import {
+  Cursor,
+  CursorOptions,
+  CursorResult,
+  QueryOptions,
+  QueryResult,
+  QueryState
+} from './types';
 
-const DEFAULT_HOST = '127.0.0.1';
-const DEFAULT_PORT = 6969;
-const DEFAULT_TIMEOUT = 5000;
-
-export const DEFAULT_POOL_OPTIONS: PoolOptions = {
-  max: 10,
-  min: 2,
-  idleTimeoutMillis: 30000
-};
-
-export interface ClientOptions {
-  host: string;
-  port: number;
-  poolOptions?: PoolOptions;
-  timeout?: number;
-}
-
+/**
+ * RuloDB client that combines connection management with query building
+ */
 export class Client {
-  private pool: Pool<Socket>;
-  private host: string;
-  private port: number;
-  private timeout: number;
+  private connection: Connection;
 
-  constructor(
-    options: ClientOptions | undefined = {
-      host: DEFAULT_HOST,
-      port: DEFAULT_PORT,
-      poolOptions: DEFAULT_POOL_OPTIONS,
-      timeout: DEFAULT_TIMEOUT
-    }
-  ) {
-    this.host = options.host;
-    this.port = options.port;
-    this.timeout = options.timeout || DEFAULT_TIMEOUT;
-
-    this.pool = createPool<Socket>(
-      {
-        create: () => this.createConnection(),
-        destroy: (socket) => this.destroyConnection(socket),
-        validate: (socket) => this.validateConnection(socket)
-      },
-      options.poolOptions
-    );
+  constructor(options: ConnectionOptions = {}) {
+    this.connection = new Connection(options);
   }
 
-  private createConnection(): Promise<Socket> {
-    return new Promise((resolve, reject) => {
-      const socket = connect({ host: this.host, port: this.port }, () => {
-        socket.setTimeout(this.timeout);
-        resolve(socket);
-      });
-      socket.on('error', reject);
-    });
+  /**
+   * Connect to the database
+   */
+  async connect(): Promise<void> {
+    await this.connection.connect();
   }
 
-  private destroyConnection(socket: Socket): Promise<void> {
-    return new Promise((resolve) => {
-      socket.end(() => {
-        socket.destroy();
-        resolve();
-      });
-    });
+  /**
+   * Disconnect from the database
+   */
+  async disconnect(): Promise<void> {
+    await this.connection.disconnect();
   }
 
-  private validateConnection(socket: Socket): Promise<boolean> {
-    return Promise.resolve(!socket.destroyed);
+  /**
+   * Check if connected to the database
+   */
+  isConnected(): boolean {
+    return this.connection.isConnected();
   }
 
-  public async send<T = unknown, R = unknown>(data: T): Promise<R> {
-    const socket = await this.pool.acquire();
-
-    try {
-      const payload = encode(data);
-      const framed = Buffer.alloc(4 + payload.length);
-      framed.writeUInt32BE(payload.length, 0);
-      payload.copy(framed, 4);
-
-      const response = await this.sendMessage(socket, framed);
-      return decode(response);
-    } finally {
-      this.pool.release(socket);
-    }
-  }
-
-  private sendMessage(socket: Socket, message: Buffer): Promise<Buffer> {
-    return new Promise((resolve, reject) => {
-      let buffer = Buffer.alloc(0);
-
-      const onData = (chunk: Buffer) => {
-        buffer = Buffer.concat([buffer, chunk]);
-
-        if (buffer.length >= 4) {
-          const expectedLength = buffer.readUInt32BE(0);
-
-          if (buffer.length >= 4 + expectedLength) {
-            const messageBuffer: Buffer = buffer.subarray(4, 4 + expectedLength);
-
-            cleanup();
-            resolve(messageBuffer);
+  /**
+   * Execute a query directly with explicit type override
+   */
+  async run<T = unknown>(
+    query: RQuery<QueryState<unknown>, string, unknown>,
+    options?: QueryOptions & CursorOptions
+  ): Promise<T> {
+    // If cursor options are provided, ensure we create a proper cursor query
+    const enhancedOptions =
+      options && (options.batchSize || options.startKey)
+        ? {
+            ...options,
+            batchSize: options.batchSize || 50
           }
-        }
+        : options;
+
+    const result = await query.run(this.connection, enhancedOptions);
+
+    // If the result is a cursor result, wrap it in a Cursor instance
+    if (result && typeof result === 'object' && 'items' in result && 'cursor' in result) {
+      const cursorResult = result as CursorResult<T>;
+
+      // Ensure cursor has proper state for iteration
+      const enhancedCursorResult: CursorResult<T> = {
+        ...cursorResult,
+        cursor: cursorResult.cursor
+          ? {
+              startKey: cursorResult.cursor.startKey,
+              batchSize: cursorResult.cursor.batchSize || enhancedOptions?.batchSize || 50
+            }
+          : undefined
       };
 
-      const onError = (err: Error) => {
-        cleanup();
-        reject(err);
-      };
+      return new Cursor(enhancedCursorResult, this.connection, query._query) as T;
+    }
 
-      const cleanup = () => {
-        socket.off('data', onData);
-        socket.off('error', onError);
-      };
-
-      socket.on('data', onData);
-      socket.once('error', onError);
-      socket.write(message);
-    });
+    return result as T;
   }
 
-  public async close(): Promise<void> {
-    await this.pool.drain();
-    await this.pool.clear();
+  /**
+   * Get the underlying connection for direct use
+   */
+  getConnection(): Connection {
+    return this.connection;
+  }
+
+  /**
+   * Add event listeners for connection events
+   */
+  on(
+    event: 'connect' | 'disconnect' | 'error' | 'close',
+    listener: (...args: unknown[]) => void
+  ): this {
+    this.connection.on(event, listener);
+    return this;
+  }
+
+  /**
+   * Remove event listeners
+   */
+  off(
+    event: 'connect' | 'disconnect' | 'error' | 'close',
+    listener: (...args: unknown[]) => void
+  ): this {
+    this.connection.off(event, listener);
+    return this;
+  }
+
+  /**
+   * Execute a raw query with the connection
+   */
+  async queryRaw<T = unknown>(query: Query): Promise<QueryResult<T> | Cursor<T>> {
+    const result = await this.connection.query(query);
+
+    // If the result is a cursor result, wrap it in a Cursor instance
+    if (result && typeof result === 'object' && 'items' in result && 'cursor' in result) {
+      const cursorResult = result as CursorResult<T>;
+
+      // Ensure cursor has proper state for iteration
+      const enhancedCursorResult: CursorResult<T> = {
+        ...cursorResult,
+        cursor: cursorResult.cursor
+          ? {
+              startKey: cursorResult.cursor.startKey,
+              batchSize: cursorResult.cursor.batchSize
+            }
+          : undefined
+      };
+
+      return new Cursor(enhancedCursorResult, this.connection, query);
+    }
+
+    return result as QueryResult<T>;
+  }
+
+  /**
+   * Create a cursor from query results with proper state tracking
+   */
+  private createCursor<T>(cursorResult: CursorResult<T>, query: Query): Cursor<T> {
+    // Ensure cursor has all necessary state for proper iteration
+    const enhancedResult: CursorResult<T> = {
+      ...cursorResult,
+      cursor: cursorResult.cursor
+        ? {
+            startKey: cursorResult.cursor.startKey,
+            batchSize: cursorResult.cursor.batchSize
+          }
+        : {
+            startKey: '',
+            batchSize: 50
+          }
+    };
+
+    return new Cursor(enhancedResult, this.connection, query);
   }
 }
+
+/**
+ * Create a new RuloDB client instance
+ */
+export function createClient(options: ConnectionOptions = {}): Client {
+  return new Client(options);
+}
+
+/**
+ * Default export for convenience
+ */
+export default Client;
