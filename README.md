@@ -1,6 +1,8 @@
 [![Build](https://github.com/rulodb/rulodb/actions/workflows/build.yml/badge.svg)](https://github.com/rulodb/rulodb/actions/workflows/build.yml)
 [![License](https://img.shields.io/badge/license-AGPL%203.0-green.svg)](./LICENSE)
 [![codecov](https://codecov.io/gh/rulodb/rulodb/graph/badge.svg?token=9NVFTUXUEV)](https://codecov.io/gh/rulodb/rulodb)
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Frulodb%2Frulodb.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Frulodb%2Frulodb?ref=badge_shield)
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Frulodb%2Frulodb.svg?type=shield&issueType=security)](https://app.fossa.com/projects/git%2Bgithub.com%2Frulodb%2Frulodb?ref=badge_shield&issueType=security)
 
 <br />
 <div align="center">
@@ -39,7 +41,8 @@ sudo apt install -y \
   build-essential \
   clang \
   libclang-dev \
-  libc6-dev
+  libc6-dev \
+  protobuf-compiler
 ```
 
 To build the project, you need to have Rust and Cargo installed. You can install them
