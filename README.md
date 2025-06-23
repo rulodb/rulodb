@@ -1,6 +1,7 @@
 [![Build](https://github.com/rulodb/rulodb/actions/workflows/build.yml/badge.svg)](https://github.com/rulodb/rulodb/actions/workflows/build.yml)
 [![License](https://img.shields.io/badge/license-AGPL%203.0-green.svg)](./LICENSE)
 [![codecov](https://codecov.io/gh/rulodb/rulodb/graph/badge.svg?token=9NVFTUXUEV)](https://codecov.io/gh/rulodb/rulodb)
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Frulodb%2Frulodb.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Frulodb%2Frulodb?ref=badge_shield)
 
 <br />
 <div align="center">
@@ -68,3 +69,6 @@ RuloDB is dual-licensed under the AGPLv3 and a commercial license:
 See [`LICENSE`](./LICENSE) and [`LICENSE-COMMERCIAL`](./LICENSE-COMMERCIAL) for details.
 
 To purchase a license or for compliance questions, send an email to [info@opcotech.com](mailto:info@opcotech.com).
+
+
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Frulodb%2Frulodb.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2Frulodb%2Frulodb?ref=badge_large)
