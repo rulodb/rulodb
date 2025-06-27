@@ -8,10 +8,7 @@ async fn test_database_create_query() {
     let query_id = "test-db-create-001";
     let database_name = &generate_unique_name("test_database_create");
 
-    println!(
-        "Testing database create query with ID: {}, database: {}",
-        query_id, database_name
-    );
+    println!("Testing database create query with ID: {query_id}, database: {database_name}");
 
     // Connect to the running server
     let mut stream = connect_to_server()
@@ -57,8 +54,7 @@ async fn test_database_create_with_custom_timeout() {
     let database_name = &generate_unique_name("test_database_create_timeout");
 
     println!(
-        "Testing database create with custom timeout, ID: {}, database: {}",
-        query_id, database_name
+        "Testing database create with custom timeout, ID: {query_id}, database: {database_name}"
     );
 
     // Connect to the running server
@@ -110,10 +106,7 @@ async fn test_database_create_duplicate() {
     let query_id = "test-db-create-duplicate-003";
     let database_name = &generate_unique_name("test_database_duplicate");
 
-    println!(
-        "Testing duplicate database create, ID: {}, database: {}",
-        query_id, database_name
-    );
+    println!("Testing duplicate database create, ID: {query_id}, database: {database_name}");
 
     // Connect to the running server
     let mut stream = connect_to_server()
@@ -122,20 +115,20 @@ async fn test_database_create_duplicate() {
 
     // First create - should succeed
     let query1 = create_database_create_query(database_name);
-    let envelope1 = create_envelope(&format!("{}-first", query_id), &query1);
+    let envelope1 = create_envelope(&format!("{query_id}-first"), &query1);
 
     let response_envelope1 = send_envelope_to_server(&mut stream, &envelope1)
         .await
         .expect("Failed to send first create envelope");
 
-    validate_response_envelope(&response_envelope1, &format!("{}-first", query_id))
+    validate_response_envelope(&response_envelope1, &format!("{query_id}-first"))
         .expect("First create response validation failed");
 
     println!("✓ First database create completed");
 
     // Second create - might succeed or fail depending on implementation
     let query2 = create_database_create_query(database_name);
-    let envelope2 = create_envelope(&format!("{}-second", query_id), &query2);
+    let envelope2 = create_envelope(&format!("{query_id}-second"), &query2);
 
     let response_envelope2 = send_envelope_to_server(&mut stream, &envelope2)
         .await
@@ -230,10 +223,7 @@ async fn test_database_create_and_verify_list() {
     let query_id_list = "test-db-create-verify-list";
     let database_name = &generate_unique_name("test_database_create_verify");
 
-    println!(
-        "Testing database create and verification via list, database: {}",
-        database_name
-    );
+    println!("Testing database create and verification via list, database: {database_name}");
 
     // Connect to the running server
     let mut stream = connect_to_server()
@@ -282,14 +272,10 @@ async fn test_database_create_and_verify_list() {
             }
 
             if found {
-                println!(
-                    "✓ Created database '{}' found in database list",
-                    database_name
-                );
+                println!("✓ Created database '{database_name}' found in database list");
             } else {
                 println!(
-                    "ℹ Created database '{}' not found in list (may not be immediately visible)",
-                    database_name
+                    "ℹ Created database '{database_name}' not found in list (may not be immediately visible)"
                 );
                 println!("  Available databases: {:?}", array.items);
             }

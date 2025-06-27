@@ -56,7 +56,7 @@ impl fmt::Display for PlanExplanation {
 
             // Print properties
             for (key, value) in &node.properties {
-                writeln!(f, "{}  {}: {}", indent, key, value)?;
+                writeln!(f, "{indent}  {key}: {value}")?;
             }
         }
 
@@ -104,7 +104,7 @@ impl Explainer {
     fn get_node_info(&self, node: &PlanNode) -> (String, Vec<(String, String)>) {
         match node {
             PlanNode::Constant { value, .. } => {
-                let value_str = format!("{:?}", value);
+                let value_str = format!("{value:?}");
                 (
                     "Constant".to_string(),
                     vec![("Value".to_string(), value_str)],
@@ -289,7 +289,7 @@ impl Explainer {
                 ],
             ),
             PlanNode::Update { patch, .. } => {
-                let patch_str = format!("{:?}", patch);
+                let patch_str = format!("{patch:?}");
                 ("Update".to_string(), vec![("Patch".to_string(), patch_str)])
             }
             PlanNode::Delete { .. } => ("Delete".to_string(), vec![]),
@@ -301,7 +301,7 @@ impl Explainer {
                 "Filter".to_string(),
                 vec![
                     ("Predicate".to_string(), self.describe_predicate(predicate)),
-                    ("Selectivity".to_string(), format!("{:.2}", selectivity)),
+                    ("Selectivity".to_string(), format!("{selectivity:.2}")),
                 ],
             ),
             PlanNode::OrderBy { fields, .. } => {
@@ -351,9 +351,9 @@ impl Explainer {
                     .map(|r| self.describe_predicate(r))
                     .unwrap_or_else(|| "NULL".to_string());
                 let op_str = binary_op::Operator::try_from(bin.op)
-                    .map(|op| format!("{:?}", op))
+                    .map(|op| format!("{op:?}"))
                     .unwrap_or_else(|_| "UNKNOWN".to_string());
-                format!("{} {} {}", left_str, op_str, right_str)
+                format!("{left_str} {op_str} {right_str}")
             }
             Some(expression::Expr::Unary(un)) => {
                 let operand_str = un
@@ -362,9 +362,9 @@ impl Explainer {
                     .map(|e| self.describe_predicate(e))
                     .unwrap_or_else(|| "NULL".to_string());
                 let op_str = unary_op::Operator::try_from(un.op)
-                    .map(|op| format!("{:?}", op))
+                    .map(|op| format!("{op:?}"))
                     .unwrap_or_else(|_| "UNKNOWN".to_string());
-                format!("{} {}", op_str, operand_str)
+                format!("{op_str} {operand_str}")
             }
             Some(expression::Expr::Subquery(_)) => "SUBQUERY".to_string(),
             Some(expression::Expr::Variable(var)) => format!("${}", var.name),

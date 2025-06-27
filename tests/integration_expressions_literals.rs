@@ -10,8 +10,7 @@ async fn test_literal_expression_string() {
     let table_name = &generate_unique_name("test_table_literal_string");
 
     println!(
-        "Testing literal string expression, ID: {}, database: {}, table: {}",
-        query_id, database_name, table_name
+        "Testing literal string expression, ID: {query_id}, database: {database_name}, table: {table_name}"
     );
 
     // Connect to the running server
@@ -21,24 +20,21 @@ async fn test_literal_expression_string() {
 
     // Setup: Create database and table
     let db_create_query = create_database_create_query(database_name);
-    let db_create_envelope = create_envelope(&format!("{}-db-create", query_id), &db_create_query);
+    let db_create_envelope = create_envelope(&format!("{query_id}-db-create"), &db_create_query);
     let db_create_response = send_envelope_to_server(&mut stream, &db_create_envelope)
         .await
         .expect("Failed to send database create envelope");
-    validate_response_envelope(&db_create_response, &format!("{}-db-create", query_id))
+    validate_response_envelope(&db_create_response, &format!("{query_id}-db-create"))
         .expect("Database create response validation failed");
 
     let table_create_query = create_table_create_query(database_name, table_name);
     let table_create_envelope =
-        create_envelope(&format!("{}-table-create", query_id), &table_create_query);
+        create_envelope(&format!("{query_id}-table-create"), &table_create_query);
     let table_create_response = send_envelope_to_server(&mut stream, &table_create_envelope)
         .await
         .expect("Failed to send table create envelope");
-    validate_response_envelope(
-        &table_create_response,
-        &format!("{}-table-create", query_id),
-    )
-    .expect("Table create response validation failed");
+    validate_response_envelope(&table_create_response, &format!("{query_id}-table-create"))
+        .expect("Table create response validation failed");
 
     println!("✓ Database and table created successfully");
 
@@ -62,11 +58,11 @@ async fn test_literal_expression_string() {
     ];
 
     let insert_query = create_insert_query(database_name, table_name, documents);
-    let insert_envelope = create_envelope(&format!("{}-insert", query_id), &insert_query);
+    let insert_envelope = create_envelope(&format!("{query_id}-insert"), &insert_query);
     let insert_response = send_envelope_to_server(&mut stream, &insert_envelope)
         .await
         .expect("Failed to send insert envelope");
-    validate_response_envelope(&insert_response, &format!("{}-insert", query_id))
+    validate_response_envelope(&insert_response, &format!("{query_id}-insert"))
         .expect("Insert response validation failed");
 
     println!("✓ Test documents inserted successfully");
@@ -78,11 +74,11 @@ async fn test_literal_expression_string() {
         create_binary_expression(proto::binary_op::Operator::Eq, field_expr, literal_expr);
     let filter_query = create_filter_query(database_name, table_name, binary_expr);
 
-    let filter_envelope = create_envelope(&format!("{}-filter", query_id), &filter_query);
+    let filter_envelope = create_envelope(&format!("{query_id}-filter"), &filter_query);
     let filter_response = send_envelope_to_server(&mut stream, &filter_envelope)
         .await
         .expect("Failed to send filter envelope");
-    validate_response_envelope(&filter_response, &format!("{}-filter", query_id))
+    validate_response_envelope(&filter_response, &format!("{query_id}-filter"))
         .expect("Filter response validation failed");
 
     // Decode and validate the response
@@ -115,7 +111,7 @@ async fn test_literal_expression_string() {
 
     // Cleanup
     let db_drop_query = create_database_drop_query(database_name);
-    let db_drop_envelope = create_envelope(&format!("{}-db-drop", query_id), &db_drop_query);
+    let db_drop_envelope = create_envelope(&format!("{query_id}-db-drop"), &db_drop_query);
     let _db_drop_response = send_envelope_to_server(&mut stream, &db_drop_envelope)
         .await
         .expect("Failed to send database drop envelope");
@@ -130,8 +126,7 @@ async fn test_literal_expression_integer() {
     let table_name = &generate_unique_name("test_table_literal_int");
 
     println!(
-        "Testing literal integer expression, ID: {}, database: {}, table: {}",
-        query_id, database_name, table_name
+        "Testing literal integer expression, ID: {query_id}, database: {database_name}, table: {table_name}"
     );
 
     let mut stream = connect_to_server()
@@ -140,14 +135,14 @@ async fn test_literal_expression_integer() {
 
     // Setup
     let db_create_query = create_database_create_query(database_name);
-    let db_create_envelope = create_envelope(&format!("{}-db-create", query_id), &db_create_query);
+    let db_create_envelope = create_envelope(&format!("{query_id}-db-create"), &db_create_query);
     send_envelope_to_server(&mut stream, &db_create_envelope)
         .await
         .expect("Failed to create database");
 
     let table_create_query = create_table_create_query(database_name, table_name);
     let table_create_envelope =
-        create_envelope(&format!("{}-table-create", query_id), &table_create_query);
+        create_envelope(&format!("{query_id}-table-create"), &table_create_query);
     send_envelope_to_server(&mut stream, &table_create_envelope)
         .await
         .expect("Failed to create table");
@@ -172,7 +167,7 @@ async fn test_literal_expression_integer() {
     ];
 
     let insert_query = create_insert_query(database_name, table_name, documents);
-    let insert_envelope = create_envelope(&format!("{}-insert", query_id), &insert_query);
+    let insert_envelope = create_envelope(&format!("{query_id}-insert"), &insert_query);
     send_envelope_to_server(&mut stream, &insert_envelope)
         .await
         .expect("Failed to insert documents");
@@ -184,7 +179,7 @@ async fn test_literal_expression_integer() {
         create_binary_expression(proto::binary_op::Operator::Gt, field_expr, literal_expr);
     let filter_query = create_filter_query(database_name, table_name, binary_expr);
 
-    let filter_envelope = create_envelope(&format!("{}-filter", query_id), &filter_query);
+    let filter_envelope = create_envelope(&format!("{query_id}-filter"), &filter_query);
     let filter_response = send_envelope_to_server(&mut stream, &filter_envelope)
         .await
         .expect("Failed to send filter envelope");
@@ -199,7 +194,7 @@ async fn test_literal_expression_integer() {
             if let Some(proto::datum::Value::Object(obj)) = &item.value {
                 let score = obj.fields.get("score").expect("Score field should exist");
                 if let Some(proto::datum::Value::Int(score_val)) = &score.value {
-                    assert!(*score_val > 80, "Score should be > 80: {}", score_val);
+                    assert!(*score_val > 80, "Score should be > 80: {score_val}");
                 }
             }
         }
@@ -211,7 +206,7 @@ async fn test_literal_expression_integer() {
 
     // Cleanup
     let db_drop_query = create_database_drop_query(database_name);
-    let db_drop_envelope = create_envelope(&format!("{}-db-drop", query_id), &db_drop_query);
+    let db_drop_envelope = create_envelope(&format!("{query_id}-db-drop"), &db_drop_query);
     send_envelope_to_server(&mut stream, &db_drop_envelope)
         .await
         .expect("Failed to drop database");
@@ -226,8 +221,7 @@ async fn test_literal_expression_float() {
     let table_name = &generate_unique_name("test_table_literal_float");
 
     println!(
-        "Testing literal float expression, ID: {}, database: {}, table: {}",
-        query_id, database_name, table_name
+        "Testing literal float expression, ID: {query_id}, database: {database_name}, table: {table_name}"
     );
 
     let mut stream = connect_to_server()
@@ -236,14 +230,14 @@ async fn test_literal_expression_float() {
 
     // Setup
     let db_create_query = create_database_create_query(database_name);
-    let db_create_envelope = create_envelope(&format!("{}-db-create", query_id), &db_create_query);
+    let db_create_envelope = create_envelope(&format!("{query_id}-db-create"), &db_create_query);
     send_envelope_to_server(&mut stream, &db_create_envelope)
         .await
         .expect("Failed to create database");
 
     let table_create_query = create_table_create_query(database_name, table_name);
     let table_create_envelope =
-        create_envelope(&format!("{}-table-create", query_id), &table_create_query);
+        create_envelope(&format!("{query_id}-table-create"), &table_create_query);
     send_envelope_to_server(&mut stream, &table_create_envelope)
         .await
         .expect("Failed to create table");
@@ -268,7 +262,7 @@ async fn test_literal_expression_float() {
     ];
 
     let insert_query = create_insert_query(database_name, table_name, documents);
-    let insert_envelope = create_envelope(&format!("{}-insert", query_id), &insert_query);
+    let insert_envelope = create_envelope(&format!("{query_id}-insert"), &insert_query);
     send_envelope_to_server(&mut stream, &insert_envelope)
         .await
         .expect("Failed to insert documents");
@@ -280,7 +274,7 @@ async fn test_literal_expression_float() {
         create_binary_expression(proto::binary_op::Operator::Ge, field_expr, literal_expr);
     let filter_query = create_filter_query(database_name, table_name, binary_expr);
 
-    let filter_envelope = create_envelope(&format!("{}-filter", query_id), &filter_query);
+    let filter_envelope = create_envelope(&format!("{query_id}-filter"), &filter_query);
     let filter_response = send_envelope_to_server(&mut stream, &filter_envelope)
         .await
         .expect("Failed to send filter envelope");
@@ -299,11 +293,7 @@ async fn test_literal_expression_float() {
             if let Some(proto::datum::Value::Object(obj)) = &item.value {
                 let rating = obj.fields.get("rating").expect("Rating field should exist");
                 if let Some(proto::datum::Value::Float(rating_val)) = &rating.value {
-                    assert!(
-                        *rating_val >= 4.0,
-                        "Rating should be >= 4.0: {}",
-                        rating_val
-                    );
+                    assert!(*rating_val >= 4.0, "Rating should be >= 4.0: {rating_val}");
                 }
             }
         }
@@ -315,7 +305,7 @@ async fn test_literal_expression_float() {
 
     // Cleanup
     let db_drop_query = create_database_drop_query(database_name);
-    let db_drop_envelope = create_envelope(&format!("{}-db-drop", query_id), &db_drop_query);
+    let db_drop_envelope = create_envelope(&format!("{query_id}-db-drop"), &db_drop_query);
     send_envelope_to_server(&mut stream, &db_drop_envelope)
         .await
         .expect("Failed to drop database");
@@ -330,8 +320,7 @@ async fn test_literal_expression_boolean() {
     let table_name = &generate_unique_name("test_table_literal_bool");
 
     println!(
-        "Testing literal boolean expression, ID: {}, database: {}, table: {}",
-        query_id, database_name, table_name
+        "Testing literal boolean expression, ID: {query_id}, database: {database_name}, table: {table_name}"
     );
 
     let mut stream = connect_to_server()
@@ -340,14 +329,14 @@ async fn test_literal_expression_boolean() {
 
     // Setup
     let db_create_query = create_database_create_query(database_name);
-    let db_create_envelope = create_envelope(&format!("{}-db-create", query_id), &db_create_query);
+    let db_create_envelope = create_envelope(&format!("{query_id}-db-create"), &db_create_query);
     send_envelope_to_server(&mut stream, &db_create_envelope)
         .await
         .expect("Failed to create database");
 
     let table_create_query = create_table_create_query(database_name, table_name);
     let table_create_envelope =
-        create_envelope(&format!("{}-table-create", query_id), &table_create_query);
+        create_envelope(&format!("{query_id}-table-create"), &table_create_query);
     send_envelope_to_server(&mut stream, &table_create_envelope)
         .await
         .expect("Failed to create table");
@@ -372,7 +361,7 @@ async fn test_literal_expression_boolean() {
     ];
 
     let insert_query = create_insert_query(database_name, table_name, documents);
-    let insert_envelope = create_envelope(&format!("{}-insert", query_id), &insert_query);
+    let insert_envelope = create_envelope(&format!("{query_id}-insert"), &insert_query);
     send_envelope_to_server(&mut stream, &insert_envelope)
         .await
         .expect("Failed to insert documents");
@@ -384,7 +373,7 @@ async fn test_literal_expression_boolean() {
         create_binary_expression(proto::binary_op::Operator::Eq, field_expr, literal_expr);
     let filter_query = create_filter_query(database_name, table_name, binary_expr);
 
-    let filter_envelope = create_envelope(&format!("{}-filter", query_id), &filter_query);
+    let filter_envelope = create_envelope(&format!("{query_id}-filter"), &filter_query);
     let filter_response = send_envelope_to_server(&mut stream, &filter_envelope)
         .await
         .expect("Failed to send filter envelope");
@@ -415,7 +404,7 @@ async fn test_literal_expression_boolean() {
 
     // Cleanup
     let db_drop_query = create_database_drop_query(database_name);
-    let db_drop_envelope = create_envelope(&format!("{}-db-drop", query_id), &db_drop_query);
+    let db_drop_envelope = create_envelope(&format!("{query_id}-db-drop"), &db_drop_query);
     send_envelope_to_server(&mut stream, &db_drop_envelope)
         .await
         .expect("Failed to drop database");
@@ -430,8 +419,7 @@ async fn test_field_reference_simple() {
     let table_name = &generate_unique_name("test_table_field_simple");
 
     println!(
-        "Testing simple field reference, ID: {}, database: {}, table: {}",
-        query_id, database_name, table_name
+        "Testing simple field reference, ID: {query_id}, database: {database_name}, table: {table_name}"
     );
 
     let mut stream = connect_to_server()
@@ -440,14 +428,14 @@ async fn test_field_reference_simple() {
 
     // Setup
     let db_create_query = create_database_create_query(database_name);
-    let db_create_envelope = create_envelope(&format!("{}-db-create", query_id), &db_create_query);
+    let db_create_envelope = create_envelope(&format!("{query_id}-db-create"), &db_create_query);
     send_envelope_to_server(&mut stream, &db_create_envelope)
         .await
         .expect("Failed to create database");
 
     let table_create_query = create_table_create_query(database_name, table_name);
     let table_create_envelope =
-        create_envelope(&format!("{}-table-create", query_id), &table_create_query);
+        create_envelope(&format!("{query_id}-table-create"), &table_create_query);
     send_envelope_to_server(&mut stream, &table_create_envelope)
         .await
         .expect("Failed to create table");
@@ -467,7 +455,7 @@ async fn test_field_reference_simple() {
     ];
 
     let insert_query = create_insert_query(database_name, table_name, documents);
-    let insert_envelope = create_envelope(&format!("{}-insert", query_id), &insert_query);
+    let insert_envelope = create_envelope(&format!("{query_id}-insert"), &insert_query);
     send_envelope_to_server(&mut stream, &insert_envelope)
         .await
         .expect("Failed to insert documents");
@@ -479,7 +467,7 @@ async fn test_field_reference_simple() {
         create_binary_expression(proto::binary_op::Operator::Eq, field_expr, literal_expr);
     let filter_query = create_filter_query(database_name, table_name, binary_expr);
 
-    let filter_envelope = create_envelope(&format!("{}-filter", query_id), &filter_query);
+    let filter_envelope = create_envelope(&format!("{query_id}-filter"), &filter_query);
     let filter_response = send_envelope_to_server(&mut stream, &filter_envelope)
         .await
         .expect("Failed to send filter envelope");
@@ -513,7 +501,7 @@ async fn test_field_reference_simple() {
 
     // Cleanup
     let db_drop_query = create_database_drop_query(database_name);
-    let db_drop_envelope = create_envelope(&format!("{}-db-drop", query_id), &db_drop_query);
+    let db_drop_envelope = create_envelope(&format!("{query_id}-db-drop"), &db_drop_query);
     send_envelope_to_server(&mut stream, &db_drop_envelope)
         .await
         .expect("Failed to drop database");
@@ -528,8 +516,7 @@ async fn test_field_reference_nested() {
     let table_name = &generate_unique_name("test_table_field_nested");
 
     println!(
-        "Testing nested field reference, ID: {}, database: {}, table: {}",
-        query_id, database_name, table_name
+        "Testing nested field reference, ID: {query_id}, database: {database_name}, table: {table_name}"
     );
 
     let mut stream = connect_to_server()
@@ -538,14 +525,14 @@ async fn test_field_reference_nested() {
 
     // Setup
     let db_create_query = create_database_create_query(database_name);
-    let db_create_envelope = create_envelope(&format!("{}-db-create", query_id), &db_create_query);
+    let db_create_envelope = create_envelope(&format!("{query_id}-db-create"), &db_create_query);
     send_envelope_to_server(&mut stream, &db_create_envelope)
         .await
         .expect("Failed to create database");
 
     let table_create_query = create_table_create_query(database_name, table_name);
     let table_create_envelope =
-        create_envelope(&format!("{}-table-create", query_id), &table_create_query);
+        create_envelope(&format!("{query_id}-table-create"), &table_create_query);
     send_envelope_to_server(&mut stream, &table_create_envelope)
         .await
         .expect("Failed to create table");
@@ -603,7 +590,7 @@ async fn test_field_reference_nested() {
     ];
 
     let insert_query = create_insert_query(database_name, table_name, documents);
-    let insert_envelope = create_envelope(&format!("{}-insert", query_id), &insert_query);
+    let insert_envelope = create_envelope(&format!("{query_id}-insert"), &insert_query);
     send_envelope_to_server(&mut stream, &insert_envelope)
         .await
         .expect("Failed to insert documents");
@@ -615,7 +602,7 @@ async fn test_field_reference_nested() {
         create_binary_expression(proto::binary_op::Operator::Eq, field_expr, literal_expr);
     let filter_query = create_filter_query(database_name, table_name, binary_expr);
 
-    let filter_envelope = create_envelope(&format!("{}-filter", query_id), &filter_query);
+    let filter_envelope = create_envelope(&format!("{query_id}-filter"), &filter_query);
     let filter_response = send_envelope_to_server(&mut stream, &filter_envelope)
         .await
         .expect("Failed to send filter envelope");
@@ -651,7 +638,7 @@ async fn test_field_reference_nested() {
 
     // Cleanup
     let db_drop_query = create_database_drop_query(database_name);
-    let db_drop_envelope = create_envelope(&format!("{}-db-drop", query_id), &db_drop_query);
+    let db_drop_envelope = create_envelope(&format!("{query_id}-db-drop"), &db_drop_query);
     send_envelope_to_server(&mut stream, &db_drop_envelope)
         .await
         .expect("Failed to drop database");
@@ -666,8 +653,7 @@ async fn test_field_reference_multiple_levels() {
     let table_name = &generate_unique_name("test_table_field_deep");
 
     println!(
-        "Testing deeply nested field reference, ID: {}, database: {}, table: {}",
-        query_id, database_name, table_name
+        "Testing deeply nested field reference, ID: {query_id}, database: {database_name}, table: {table_name}"
     );
 
     let mut stream = connect_to_server()
@@ -676,14 +662,14 @@ async fn test_field_reference_multiple_levels() {
 
     // Setup
     let db_create_query = create_database_create_query(database_name);
-    let db_create_envelope = create_envelope(&format!("{}-db-create", query_id), &db_create_query);
+    let db_create_envelope = create_envelope(&format!("{query_id}-db-create"), &db_create_query);
     send_envelope_to_server(&mut stream, &db_create_envelope)
         .await
         .expect("Failed to create database");
 
     let table_create_query = create_table_create_query(database_name, table_name);
     let table_create_envelope =
-        create_envelope(&format!("{}-table-create", query_id), &table_create_query);
+        create_envelope(&format!("{query_id}-table-create"), &table_create_query);
     send_envelope_to_server(&mut stream, &table_create_envelope)
         .await
         .expect("Failed to create table");
@@ -763,7 +749,7 @@ async fn test_field_reference_multiple_levels() {
     ];
 
     let insert_query = create_insert_query(database_name, table_name, documents);
-    let insert_envelope = create_envelope(&format!("{}-insert", query_id), &insert_query);
+    let insert_envelope = create_envelope(&format!("{query_id}-insert"), &insert_query);
     send_envelope_to_server(&mut stream, &insert_envelope)
         .await
         .expect("Failed to insert documents");
@@ -775,7 +761,7 @@ async fn test_field_reference_multiple_levels() {
         create_binary_expression(proto::binary_op::Operator::Eq, field_expr, literal_expr);
     let filter_query = create_filter_query(database_name, table_name, binary_expr);
 
-    let filter_envelope = create_envelope(&format!("{}-filter", query_id), &filter_query);
+    let filter_envelope = create_envelope(&format!("{query_id}-filter"), &filter_query);
     let filter_response = send_envelope_to_server(&mut stream, &filter_envelope)
         .await
         .expect("Failed to send filter envelope");
@@ -820,7 +806,7 @@ async fn test_field_reference_multiple_levels() {
         create_binary_expression(proto::binary_op::Operator::Gt, field_expr, literal_expr);
     let filter_query = create_filter_query(database_name, table_name, binary_expr);
 
-    let filter_envelope = create_envelope(&format!("{}-filter-lat", query_id), &filter_query);
+    let filter_envelope = create_envelope(&format!("{query_id}-filter-lat"), &filter_query);
     let filter_response = send_envelope_to_server(&mut stream, &filter_envelope)
         .await
         .expect("Failed to send filter envelope");
@@ -837,7 +823,7 @@ async fn test_field_reference_multiple_levels() {
 
     // Cleanup
     let db_drop_query = create_database_drop_query(database_name);
-    let db_drop_envelope = create_envelope(&format!("{}-db-drop", query_id), &db_drop_query);
+    let db_drop_envelope = create_envelope(&format!("{query_id}-db-drop"), &db_drop_query);
     send_envelope_to_server(&mut stream, &db_drop_envelope)
         .await
         .expect("Failed to drop database");

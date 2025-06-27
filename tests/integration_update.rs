@@ -10,8 +10,7 @@ async fn test_update_documents() {
     let table_name = &generate_unique_name("test_table_update");
 
     println!(
-        "Testing update documents with ID: {}, database: {}, table: {}",
-        query_id, database_name, table_name
+        "Testing update documents with ID: {query_id}, database: {database_name}, table: {table_name}"
     );
 
     // Connect to the running server
@@ -21,24 +20,21 @@ async fn test_update_documents() {
 
     // Setup: Create database and table
     let db_create_query = create_database_create_query(database_name);
-    let db_create_envelope = create_envelope(&format!("{}-db-create", query_id), &db_create_query);
+    let db_create_envelope = create_envelope(&format!("{query_id}-db-create"), &db_create_query);
     let db_create_response = send_envelope_to_server(&mut stream, &db_create_envelope)
         .await
         .expect("Failed to send database create envelope");
-    validate_response_envelope(&db_create_response, &format!("{}-db-create", query_id))
+    validate_response_envelope(&db_create_response, &format!("{query_id}-db-create"))
         .expect("Database create response validation failed");
 
     let table_create_query = create_table_create_query(database_name, table_name);
     let table_create_envelope =
-        create_envelope(&format!("{}-table-create", query_id), &table_create_query);
+        create_envelope(&format!("{query_id}-table-create"), &table_create_query);
     let table_create_response = send_envelope_to_server(&mut stream, &table_create_envelope)
         .await
         .expect("Failed to send table create envelope");
-    validate_response_envelope(
-        &table_create_response,
-        &format!("{}-table-create", query_id),
-    )
-    .expect("Table create response validation failed");
+    validate_response_envelope(&table_create_response, &format!("{query_id}-table-create"))
+        .expect("Table create response validation failed");
 
     println!("✓ Database and table created successfully");
 
@@ -59,11 +55,11 @@ async fn test_update_documents() {
     ];
 
     let insert_query = create_insert_query(database_name, table_name, documents);
-    let insert_envelope = create_envelope(&format!("{}-insert", query_id), &insert_query);
+    let insert_envelope = create_envelope(&format!("{query_id}-insert"), &insert_query);
     let insert_response = send_envelope_to_server(&mut stream, &insert_envelope)
         .await
         .expect("Failed to send insert envelope");
-    validate_response_envelope(&insert_response, &format!("{}-insert", query_id))
+    validate_response_envelope(&insert_response, &format!("{query_id}-insert"))
         .expect("Insert response validation failed");
 
     println!("✓ Test documents inserted successfully");
@@ -95,7 +91,7 @@ async fn test_update_documents() {
             println!("✓ Update returned expected null/empty response");
         }
         Some(proto::datum::Value::Object(ref obj)) => {
-            println!("✓ Update returned object response: {:?}", obj);
+            println!("✓ Update returned object response: {obj:?}");
         }
         Some(proto::datum::Value::Array(ref arr)) => {
             println!(
@@ -118,8 +114,7 @@ async fn test_update_empty_table() {
     let table_name = &generate_unique_name("test_table_update_empty");
 
     println!(
-        "Testing update on empty table, ID: {}, database: {}, table: {}",
-        query_id, database_name, table_name
+        "Testing update on empty table, ID: {query_id}, database: {database_name}, table: {table_name}"
     );
 
     // Connect to the running server
@@ -129,24 +124,21 @@ async fn test_update_empty_table() {
 
     // Setup: Create database and table
     let db_create_query = create_database_create_query(database_name);
-    let db_create_envelope = create_envelope(&format!("{}-db-create", query_id), &db_create_query);
+    let db_create_envelope = create_envelope(&format!("{query_id}-db-create"), &db_create_query);
     let db_create_response = send_envelope_to_server(&mut stream, &db_create_envelope)
         .await
         .expect("Failed to send database create envelope");
-    validate_response_envelope(&db_create_response, &format!("{}-db-create", query_id))
+    validate_response_envelope(&db_create_response, &format!("{query_id}-db-create"))
         .expect("Database create response validation failed");
 
     let table_create_query = create_table_create_query(database_name, table_name);
     let table_create_envelope =
-        create_envelope(&format!("{}-table-create", query_id), &table_create_query);
+        create_envelope(&format!("{query_id}-table-create"), &table_create_query);
     let table_create_response = send_envelope_to_server(&mut stream, &table_create_envelope)
         .await
         .expect("Failed to send table create envelope");
-    validate_response_envelope(
-        &table_create_response,
-        &format!("{}-table-create", query_id),
-    )
-    .expect("Table create response validation failed");
+    validate_response_envelope(&table_create_response, &format!("{query_id}-table-create"))
+        .expect("Table create response validation failed");
 
     println!("✓ Database and table created successfully");
 
@@ -174,10 +166,7 @@ async fn test_update_empty_table() {
             println!("✓ Update on empty table returned expected null/empty response");
         }
         Some(proto::datum::Value::Object(ref obj)) => {
-            println!(
-                "✓ Update on empty table returned object response: {:?}",
-                obj
-            );
+            println!("✓ Update on empty table returned object response: {obj:?}");
         }
         _ => {
             println!(
@@ -197,8 +186,7 @@ async fn test_update_with_various_data_types() {
     let table_name = &generate_unique_name("test_table_update_types");
 
     println!(
-        "Testing update with various data types, ID: {}, database: {}, table: {}",
-        query_id, database_name, table_name
+        "Testing update with various data types, ID: {query_id}, database: {database_name}, table: {table_name}"
     );
 
     // Connect to the running server
@@ -208,24 +196,21 @@ async fn test_update_with_various_data_types() {
 
     // Setup: Create database and table
     let db_create_query = create_database_create_query(database_name);
-    let db_create_envelope = create_envelope(&format!("{}-db-create", query_id), &db_create_query);
+    let db_create_envelope = create_envelope(&format!("{query_id}-db-create"), &db_create_query);
     let db_create_response = send_envelope_to_server(&mut stream, &db_create_envelope)
         .await
         .expect("Failed to send database create envelope");
-    validate_response_envelope(&db_create_response, &format!("{}-db-create", query_id))
+    validate_response_envelope(&db_create_response, &format!("{query_id}-db-create"))
         .expect("Database create response validation failed");
 
     let table_create_query = create_table_create_query(database_name, table_name);
     let table_create_envelope =
-        create_envelope(&format!("{}-table-create", query_id), &table_create_query);
+        create_envelope(&format!("{query_id}-table-create"), &table_create_query);
     let table_create_response = send_envelope_to_server(&mut stream, &table_create_envelope)
         .await
         .expect("Failed to send table create envelope");
-    validate_response_envelope(
-        &table_create_response,
-        &format!("{}-table-create", query_id),
-    )
-    .expect("Table create response validation failed");
+    validate_response_envelope(&table_create_response, &format!("{query_id}-table-create"))
+        .expect("Table create response validation failed");
 
     println!("✓ Database and table created successfully");
 
@@ -239,11 +224,11 @@ async fn test_update_with_various_data_types() {
     ])];
 
     let insert_query = create_insert_query(database_name, table_name, documents);
-    let insert_envelope = create_envelope(&format!("{}-insert", query_id), &insert_query);
+    let insert_envelope = create_envelope(&format!("{query_id}-insert"), &insert_query);
     let insert_response = send_envelope_to_server(&mut stream, &insert_envelope)
         .await
         .expect("Failed to send insert envelope");
-    validate_response_envelope(&insert_response, &format!("{}-insert", query_id))
+    validate_response_envelope(&insert_response, &format!("{query_id}-insert"))
         .expect("Insert response validation failed");
 
     println!("✓ Initial document inserted successfully");
@@ -280,7 +265,7 @@ async fn test_update_with_various_data_types() {
             println!("✓ Data types update returned expected null/empty response");
         }
         Some(proto::datum::Value::Object(ref obj)) => {
-            println!("✓ Data types update returned object response: {:?}", obj);
+            println!("✓ Data types update returned object response: {obj:?}");
         }
         Some(proto::datum::Value::Array(ref arr)) => {
             println!(
@@ -303,8 +288,7 @@ async fn test_update_with_timeout() {
     let table_name = &generate_unique_name("test_table_update_timeout");
 
     println!(
-        "Testing update with custom timeout, ID: {}, database: {}, table: {}",
-        query_id, database_name, table_name
+        "Testing update with custom timeout, ID: {query_id}, database: {database_name}, table: {table_name}"
     );
 
     // Connect to the running server
@@ -314,24 +298,21 @@ async fn test_update_with_timeout() {
 
     // Setup: Create database and table
     let db_create_query = create_database_create_query(database_name);
-    let db_create_envelope = create_envelope(&format!("{}-db-create", query_id), &db_create_query);
+    let db_create_envelope = create_envelope(&format!("{query_id}-db-create"), &db_create_query);
     let db_create_response = send_envelope_to_server(&mut stream, &db_create_envelope)
         .await
         .expect("Failed to send database create envelope");
-    validate_response_envelope(&db_create_response, &format!("{}-db-create", query_id))
+    validate_response_envelope(&db_create_response, &format!("{query_id}-db-create"))
         .expect("Database create response validation failed");
 
     let table_create_query = create_table_create_query(database_name, table_name);
     let table_create_envelope =
-        create_envelope(&format!("{}-table-create", query_id), &table_create_query);
+        create_envelope(&format!("{query_id}-table-create"), &table_create_query);
     let table_create_response = send_envelope_to_server(&mut stream, &table_create_envelope)
         .await
         .expect("Failed to send table create envelope");
-    validate_response_envelope(
-        &table_create_response,
-        &format!("{}-table-create", query_id),
-    )
-    .expect("Table create response validation failed");
+    validate_response_envelope(&table_create_response, &format!("{query_id}-table-create"))
+        .expect("Table create response validation failed");
 
     println!("✓ Database and table created successfully");
 
@@ -343,11 +324,11 @@ async fn test_update_with_timeout() {
     ])];
 
     let insert_query = create_insert_query(database_name, table_name, documents);
-    let insert_envelope = create_envelope(&format!("{}-insert", query_id), &insert_query);
+    let insert_envelope = create_envelope(&format!("{query_id}-insert"), &insert_query);
     let insert_response = send_envelope_to_server(&mut stream, &insert_envelope)
         .await
         .expect("Failed to send insert envelope");
-    validate_response_envelope(&insert_response, &format!("{}-insert", query_id))
+    validate_response_envelope(&insert_response, &format!("{query_id}-insert"))
         .expect("Insert response validation failed");
 
     println!("✓ Test document inserted successfully");
@@ -380,7 +361,7 @@ async fn test_update_with_timeout() {
             println!("✓ Update with timeout returned expected response");
         }
         Some(proto::datum::Value::Object(ref obj)) => {
-            println!("✓ Update with timeout returned object: {:?}", obj);
+            println!("✓ Update with timeout returned object: {obj:?}");
         }
         _ => {
             println!("ℹ Update with timeout returned: {:?}", response_datum.value);
@@ -397,8 +378,7 @@ async fn test_update_nonexistent_table() {
     let table_name = &generate_unique_name("test_table_nonexistent");
 
     println!(
-        "Testing update on nonexistent table, ID: {}, database: {}, table: {}",
-        query_id, database_name, table_name
+        "Testing update on nonexistent table, ID: {query_id}, database: {database_name}, table: {table_name}"
     );
 
     // Connect to the running server
@@ -408,11 +388,11 @@ async fn test_update_nonexistent_table() {
 
     // Create database but not the table
     let db_create_query = create_database_create_query(database_name);
-    let db_create_envelope = create_envelope(&format!("{}-db-create", query_id), &db_create_query);
+    let db_create_envelope = create_envelope(&format!("{query_id}-db-create"), &db_create_query);
     let db_create_response = send_envelope_to_server(&mut stream, &db_create_envelope)
         .await
         .expect("Failed to send database create envelope");
-    validate_response_envelope(&db_create_response, &format!("{}-db-create", query_id))
+    validate_response_envelope(&db_create_response, &format!("{query_id}-db-create"))
         .expect("Database create response validation failed");
 
     println!("✓ Database created successfully");

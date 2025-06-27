@@ -14,7 +14,7 @@ pub fn generate_unique_name(prefix: &str) -> String {
         .unwrap()
         .as_nanos();
     let random_suffix = fastrand::u32(1000..9999);
-    format!("{}_{}{}", prefix, timestamp, random_suffix)
+    format!("{prefix}_{timestamp}{random_suffix}")
 }
 
 /// Helper function to create a database list query
@@ -929,22 +929,13 @@ pub fn print_error_details(response_envelope: &proto::Envelope) {
                     println!("  Column: {}", error.column);
                 }
                 Some(proto::response::Result::Query(query_result)) => {
-                    println!(
-                        "  Unexpected Query result in error response: {:?}",
-                        query_result
-                    );
+                    println!("  Unexpected Query result in error response: {query_result:?}");
                 }
                 Some(proto::response::Result::AuthResult(auth_result)) => {
-                    println!(
-                        "  Unexpected Auth result in error response: {:?}",
-                        auth_result
-                    );
+                    println!("  Unexpected Auth result in error response: {auth_result:?}");
                 }
                 Some(proto::response::Result::Pong(pong_result)) => {
-                    println!(
-                        "  Unexpected Pong result in error response: {:?}",
-                        pong_result
-                    );
+                    println!("  Unexpected Pong result in error response: {pong_result:?}");
                 }
                 Some(proto::response::Result::Plan(plan_result)) => {
                     println!("  Plan-based error response:");
@@ -953,7 +944,7 @@ pub fn print_error_details(response_envelope: &proto::Envelope) {
                         if !node.properties.is_empty() {
                             for (key, value) in &node.properties {
                                 if !key.is_empty() && !value.is_empty() {
-                                    println!("      {}: {}", key, value);
+                                    println!("      {key}: {value}");
                                 }
                             }
                         }

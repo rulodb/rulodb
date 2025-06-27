@@ -58,13 +58,13 @@ async fn test_skip_limit_basic_functionality() {
         fields.insert(
             "id".to_string(),
             Datum {
-                value: Some(datum::Value::String(format!("user_{:02}", i))),
+                value: Some(datum::Value::String(format!("user_{i:02}"))),
             },
         );
         fields.insert(
             "name".to_string(),
             Datum {
-                value: Some(datum::Value::String(format!("User {}", i))),
+                value: Some(datum::Value::String(format!("User {i}"))),
             },
         );
         fields.insert(
@@ -194,7 +194,7 @@ async fn test_skip_limit_basic_functionality() {
                     value: Some(datum::Value::String(id)),
                 }) = obj.fields.get("id")
                 {
-                    println!("  First document ID: {}", id);
+                    println!("  First document ID: {id}");
                     assert_eq!(
                         id, "user_05",
                         "First document should be user_05 after skipping 5"

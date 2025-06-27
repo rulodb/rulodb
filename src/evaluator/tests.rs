@@ -440,7 +440,7 @@ async fn test_filter_documents_with_cursor() {
     for i in 1..=15 {
         documents.push(create_test_datum(
             &i.to_string(),
-            &format!("User{}", i),
+            &format!("User{i}"),
             20 + i,
         ));
     }

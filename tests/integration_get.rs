@@ -10,8 +10,7 @@ async fn test_get_existing_document() {
     let table_name = &generate_unique_name("test_table_get_existing");
 
     println!(
-        "Testing get existing document with ID: {}, database: {}, table: {}",
-        query_id, database_name, table_name
+        "Testing get existing document with ID: {query_id}, database: {database_name}, table: {table_name}"
     );
 
     // Connect to the running server
@@ -21,24 +20,21 @@ async fn test_get_existing_document() {
 
     // Setup: Create database and table
     let db_create_query = create_database_create_query(database_name);
-    let db_create_envelope = create_envelope(&format!("{}-db-create", query_id), &db_create_query);
+    let db_create_envelope = create_envelope(&format!("{query_id}-db-create"), &db_create_query);
     let db_create_response = send_envelope_to_server(&mut stream, &db_create_envelope)
         .await
         .expect("Failed to send database create envelope");
-    validate_response_envelope(&db_create_response, &format!("{}-db-create", query_id))
+    validate_response_envelope(&db_create_response, &format!("{query_id}-db-create"))
         .expect("Database create response validation failed");
 
     let table_create_query = create_table_create_query(database_name, table_name);
     let table_create_envelope =
-        create_envelope(&format!("{}-table-create", query_id), &table_create_query);
+        create_envelope(&format!("{query_id}-table-create"), &table_create_query);
     let table_create_response = send_envelope_to_server(&mut stream, &table_create_envelope)
         .await
         .expect("Failed to send table create envelope");
-    validate_response_envelope(
-        &table_create_response,
-        &format!("{}-table-create", query_id),
-    )
-    .expect("Table create response validation failed");
+    validate_response_envelope(&table_create_response, &format!("{query_id}-table-create"))
+        .expect("Table create response validation failed");
 
     println!("✓ Database and table created successfully");
 
@@ -53,11 +49,11 @@ async fn test_get_existing_document() {
     ]);
 
     let insert_query = create_insert_query(database_name, table_name, vec![document]);
-    let insert_envelope = create_envelope(&format!("{}-insert", query_id), &insert_query);
+    let insert_envelope = create_envelope(&format!("{query_id}-insert"), &insert_query);
     let insert_response = send_envelope_to_server(&mut stream, &insert_envelope)
         .await
         .expect("Failed to send insert envelope");
-    validate_response_envelope(&insert_response, &format!("{}-insert", query_id))
+    validate_response_envelope(&insert_response, &format!("{query_id}-insert"))
         .expect("Insert response validation failed");
 
     println!("✓ Test document inserted successfully");
@@ -92,23 +88,20 @@ async fn test_get_existing_document() {
                     if id_val == document_id {
                         println!("  ✓ Document ID matches expected value");
                     } else {
-                        println!(
-                            "  ℹ Document ID: expected '{}', got '{}'",
-                            document_id, id_val
-                        );
+                        println!("  ℹ Document ID: expected '{document_id}', got '{id_val}'");
                     }
                 }
             }
 
             if let Some(name_field) = obj.fields.get("name") {
                 if let Some(proto::datum::Value::String(name_val)) = &name_field.value {
-                    println!("  ✓ Document name: '{}'", name_val);
+                    println!("  ✓ Document name: '{name_val}'");
                 }
             }
 
             if let Some(value_field) = obj.fields.get("value") {
                 if let Some(proto::datum::Value::Int(value_val)) = &value_field.value {
-                    println!("  ✓ Document value: {}", value_val);
+                    println!("  ✓ Document value: {value_val}");
                 }
             }
         }
@@ -133,8 +126,7 @@ async fn test_get_nonexistent_document() {
     let table_name = &generate_unique_name("test_table_get_nonexistent");
 
     println!(
-        "Testing get nonexistent document with ID: {}, database: {}, table: {}",
-        query_id, database_name, table_name
+        "Testing get nonexistent document with ID: {query_id}, database: {database_name}, table: {table_name}"
     );
 
     // Connect to the running server
@@ -144,24 +136,21 @@ async fn test_get_nonexistent_document() {
 
     // Setup: Create database and table
     let db_create_query = create_database_create_query(database_name);
-    let db_create_envelope = create_envelope(&format!("{}-db-create", query_id), &db_create_query);
+    let db_create_envelope = create_envelope(&format!("{query_id}-db-create"), &db_create_query);
     let db_create_response = send_envelope_to_server(&mut stream, &db_create_envelope)
         .await
         .expect("Failed to send database create envelope");
-    validate_response_envelope(&db_create_response, &format!("{}-db-create", query_id))
+    validate_response_envelope(&db_create_response, &format!("{query_id}-db-create"))
         .expect("Database create response validation failed");
 
     let table_create_query = create_table_create_query(database_name, table_name);
     let table_create_envelope =
-        create_envelope(&format!("{}-table-create", query_id), &table_create_query);
+        create_envelope(&format!("{query_id}-table-create"), &table_create_query);
     let table_create_response = send_envelope_to_server(&mut stream, &table_create_envelope)
         .await
         .expect("Failed to send table create envelope");
-    validate_response_envelope(
-        &table_create_response,
-        &format!("{}-table-create", query_id),
-    )
-    .expect("Table create response validation failed");
+    validate_response_envelope(&table_create_response, &format!("{query_id}-table-create"))
+        .expect("Table create response validation failed");
 
     println!("✓ Database and table created successfully");
 
@@ -213,8 +202,7 @@ async fn test_get_with_different_key_types() {
     let table_name = &generate_unique_name("test_table_get_key_types");
 
     println!(
-        "Testing get with different key types, ID: {}, database: {}, table: {}",
-        query_id, database_name, table_name
+        "Testing get with different key types, ID: {query_id}, database: {database_name}, table: {table_name}"
     );
 
     // Connect to the running server
@@ -224,24 +212,21 @@ async fn test_get_with_different_key_types() {
 
     // Setup: Create database and table
     let db_create_query = create_database_create_query(database_name);
-    let db_create_envelope = create_envelope(&format!("{}-db-create", query_id), &db_create_query);
+    let db_create_envelope = create_envelope(&format!("{query_id}-db-create"), &db_create_query);
     let db_create_response = send_envelope_to_server(&mut stream, &db_create_envelope)
         .await
         .expect("Failed to send database create envelope");
-    validate_response_envelope(&db_create_response, &format!("{}-db-create", query_id))
+    validate_response_envelope(&db_create_response, &format!("{query_id}-db-create"))
         .expect("Database create response validation failed");
 
     let table_create_query = create_table_create_query(database_name, table_name);
     let table_create_envelope =
-        create_envelope(&format!("{}-table-create", query_id), &table_create_query);
+        create_envelope(&format!("{query_id}-table-create"), &table_create_query);
     let table_create_response = send_envelope_to_server(&mut stream, &table_create_envelope)
         .await
         .expect("Failed to send table create envelope");
-    validate_response_envelope(
-        &table_create_response,
-        &format!("{}-table-create", query_id),
-    )
-    .expect("Table create response validation failed");
+    validate_response_envelope(&table_create_response, &format!("{query_id}-table-create"))
+        .expect("Table create response validation failed");
 
     println!("✓ Database and table created successfully");
 
@@ -274,11 +259,11 @@ async fn test_get_with_different_key_types() {
     ];
 
     let insert_query = create_insert_query(database_name, table_name, documents);
-    let insert_envelope = create_envelope(&format!("{}-insert", query_id), &insert_query);
+    let insert_envelope = create_envelope(&format!("{query_id}-insert"), &insert_query);
     let insert_response = send_envelope_to_server(&mut stream, &insert_envelope)
         .await
         .expect("Failed to send insert envelope");
-    validate_response_envelope(&insert_response, &format!("{}-insert", query_id))
+    validate_response_envelope(&insert_response, &format!("{query_id}-insert"))
         .expect("Insert response validation failed");
 
     println!("✓ Documents with different key types inserted successfully");
@@ -286,7 +271,7 @@ async fn test_get_with_different_key_types() {
     // Test getting with string key
     let string_key = create_string_datum("string_key_doc");
     let string_key_query = create_get_query(database_name, table_name, string_key);
-    let string_key_envelope = create_envelope(&format!("{}-string", query_id), &string_key_query);
+    let string_key_envelope = create_envelope(&format!("{query_id}-string"), &string_key_query);
 
     let string_response = send_envelope_to_server(&mut stream, &string_key_envelope)
         .await
@@ -315,7 +300,7 @@ async fn test_get_with_different_key_types() {
     // Test getting with integer key
     let int_key = create_int_datum(42);
     let int_key_query = create_get_query(database_name, table_name, int_key);
-    let int_key_envelope = create_envelope(&format!("{}-int", query_id), &int_key_query);
+    let int_key_envelope = create_envelope(&format!("{query_id}-int"), &int_key_query);
 
     let int_response = send_envelope_to_server(&mut stream, &int_key_envelope)
         .await
@@ -344,7 +329,7 @@ async fn test_get_with_different_key_types() {
     // Test getting with boolean key
     let bool_key = create_bool_datum(true);
     let bool_key_query = create_get_query(database_name, table_name, bool_key);
-    let bool_key_envelope = create_envelope(&format!("{}-bool", query_id), &bool_key_query);
+    let bool_key_envelope = create_envelope(&format!("{query_id}-bool"), &bool_key_query);
 
     let bool_response = send_envelope_to_server(&mut stream, &bool_key_envelope)
         .await
@@ -380,8 +365,7 @@ async fn test_get_with_timeout() {
     let table_name = &generate_unique_name("test_table_get_timeout");
 
     println!(
-        "Testing get with custom timeout, ID: {}, database: {}, table: {}",
-        query_id, database_name, table_name
+        "Testing get with custom timeout, ID: {query_id}, database: {database_name}, table: {table_name}"
     );
 
     // Connect to the running server
@@ -391,24 +375,21 @@ async fn test_get_with_timeout() {
 
     // Setup: Create database and table
     let db_create_query = create_database_create_query(database_name);
-    let db_create_envelope = create_envelope(&format!("{}-db-create", query_id), &db_create_query);
+    let db_create_envelope = create_envelope(&format!("{query_id}-db-create"), &db_create_query);
     let db_create_response = send_envelope_to_server(&mut stream, &db_create_envelope)
         .await
         .expect("Failed to send database create envelope");
-    validate_response_envelope(&db_create_response, &format!("{}-db-create", query_id))
+    validate_response_envelope(&db_create_response, &format!("{query_id}-db-create"))
         .expect("Database create response validation failed");
 
     let table_create_query = create_table_create_query(database_name, table_name);
     let table_create_envelope =
-        create_envelope(&format!("{}-table-create", query_id), &table_create_query);
+        create_envelope(&format!("{query_id}-table-create"), &table_create_query);
     let table_create_response = send_envelope_to_server(&mut stream, &table_create_envelope)
         .await
         .expect("Failed to send table create envelope");
-    validate_response_envelope(
-        &table_create_response,
-        &format!("{}-table-create", query_id),
-    )
-    .expect("Table create response validation failed");
+    validate_response_envelope(&table_create_response, &format!("{query_id}-table-create"))
+        .expect("Table create response validation failed");
 
     println!("✓ Database and table created successfully");
 
@@ -421,11 +402,11 @@ async fn test_get_with_timeout() {
     ]);
 
     let insert_query = create_insert_query(database_name, table_name, vec![document]);
-    let insert_envelope = create_envelope(&format!("{}-insert", query_id), &insert_query);
+    let insert_envelope = create_envelope(&format!("{query_id}-insert"), &insert_query);
     let insert_response = send_envelope_to_server(&mut stream, &insert_envelope)
         .await
         .expect("Failed to send insert envelope");
-    validate_response_envelope(&insert_response, &format!("{}-insert", query_id))
+    validate_response_envelope(&insert_response, &format!("{query_id}-insert"))
         .expect("Insert response validation failed");
 
     println!("✓ Test document inserted successfully");
@@ -476,8 +457,7 @@ async fn test_get_from_nonexistent_table() {
     let table_name = &generate_unique_name("test_table_nonexistent");
 
     println!(
-        "Testing get from nonexistent table, ID: {}, database: {}, table: {}",
-        query_id, database_name, table_name
+        "Testing get from nonexistent table, ID: {query_id}, database: {database_name}, table: {table_name}"
     );
 
     // Connect to the running server
@@ -487,11 +467,11 @@ async fn test_get_from_nonexistent_table() {
 
     // Create database but not the table
     let db_create_query = create_database_create_query(database_name);
-    let db_create_envelope = create_envelope(&format!("{}-db-create", query_id), &db_create_query);
+    let db_create_envelope = create_envelope(&format!("{query_id}-db-create"), &db_create_query);
     let db_create_response = send_envelope_to_server(&mut stream, &db_create_envelope)
         .await
         .expect("Failed to send database create envelope");
-    validate_response_envelope(&db_create_response, &format!("{}-db-create", query_id))
+    validate_response_envelope(&db_create_response, &format!("{query_id}-db-create"))
         .expect("Database create response validation failed");
 
     println!("✓ Database created successfully");
@@ -534,8 +514,7 @@ async fn test_get_multiple_documents_different_keys() {
     let table_name = &generate_unique_name("test_table_get_multiple");
 
     println!(
-        "Testing get multiple documents with different keys, ID: {}, database: {}, table: {}",
-        query_id, database_name, table_name
+        "Testing get multiple documents with different keys, ID: {query_id}, database: {database_name}, table: {table_name}"
     );
 
     // Connect to the running server
@@ -545,24 +524,21 @@ async fn test_get_multiple_documents_different_keys() {
 
     // Setup: Create database and table
     let db_create_query = create_database_create_query(database_name);
-    let db_create_envelope = create_envelope(&format!("{}-db-create", query_id), &db_create_query);
+    let db_create_envelope = create_envelope(&format!("{query_id}-db-create"), &db_create_query);
     let db_create_response = send_envelope_to_server(&mut stream, &db_create_envelope)
         .await
         .expect("Failed to send database create envelope");
-    validate_response_envelope(&db_create_response, &format!("{}-db-create", query_id))
+    validate_response_envelope(&db_create_response, &format!("{query_id}-db-create"))
         .expect("Database create response validation failed");
 
     let table_create_query = create_table_create_query(database_name, table_name);
     let table_create_envelope =
-        create_envelope(&format!("{}-table-create", query_id), &table_create_query);
+        create_envelope(&format!("{query_id}-table-create"), &table_create_query);
     let table_create_response = send_envelope_to_server(&mut stream, &table_create_envelope)
         .await
         .expect("Failed to send table create envelope");
-    validate_response_envelope(
-        &table_create_response,
-        &format!("{}-table-create", query_id),
-    )
-    .expect("Table create response validation failed");
+    validate_response_envelope(&table_create_response, &format!("{query_id}-table-create"))
+        .expect("Table create response validation failed");
 
     println!("✓ Database and table created successfully");
 
@@ -586,11 +562,11 @@ async fn test_get_multiple_documents_different_keys() {
     ];
 
     let insert_query = create_insert_query(database_name, table_name, documents);
-    let insert_envelope = create_envelope(&format!("{}-insert", query_id), &insert_query);
+    let insert_envelope = create_envelope(&format!("{query_id}-insert"), &insert_query);
     let insert_response = send_envelope_to_server(&mut stream, &insert_envelope)
         .await
         .expect("Failed to send insert envelope");
-    validate_response_envelope(&insert_response, &format!("{}-insert", query_id))
+    validate_response_envelope(&insert_response, &format!("{query_id}-insert"))
         .expect("Insert response validation failed");
 
     println!("✓ Multiple test documents inserted successfully");
@@ -632,7 +608,7 @@ async fn test_get_multiple_documents_different_keys() {
                         }
                     }
                     Some(proto::datum::Value::Null(_)) | None => {
-                        println!("  ℹ Get '{}' returned null", key);
+                        println!("  ℹ Get '{key}' returned null");
                     }
                     _ => {
                         println!("  ℹ Get '{}' returned: {:?}", key, response_datum.value);
@@ -640,7 +616,7 @@ async fn test_get_multiple_documents_different_keys() {
                 }
             }
             Ok(proto::MessageType::Error) => {
-                println!("  ℹ Get '{}' failed with error", key);
+                println!("  ℹ Get '{key}' failed with error");
             }
             _ => {}
         }

@@ -10,8 +10,7 @@ async fn test_filter_and_order_by() {
     let table_name = &generate_unique_name("test_table_filter_order");
 
     println!(
-        "Testing filter with order by, ID: {}, database: {}, table: {}",
-        query_id, database_name, table_name
+        "Testing filter with order by, ID: {query_id}, database: {database_name}, table: {table_name}"
     );
 
     // Connect to the running server
@@ -21,24 +20,21 @@ async fn test_filter_and_order_by() {
 
     // Setup: Create database and table
     let db_create_query = create_database_create_query(database_name);
-    let db_create_envelope = create_envelope(&format!("{}-db-create", query_id), &db_create_query);
+    let db_create_envelope = create_envelope(&format!("{query_id}-db-create"), &db_create_query);
     let db_create_response = send_envelope_to_server(&mut stream, &db_create_envelope)
         .await
         .expect("Failed to send database create envelope");
-    validate_response_envelope(&db_create_response, &format!("{}-db-create", query_id))
+    validate_response_envelope(&db_create_response, &format!("{query_id}-db-create"))
         .expect("Database create response validation failed");
 
     let table_create_query = create_table_create_query(database_name, table_name);
     let table_create_envelope =
-        create_envelope(&format!("{}-table-create", query_id), &table_create_query);
+        create_envelope(&format!("{query_id}-table-create"), &table_create_query);
     let table_create_response = send_envelope_to_server(&mut stream, &table_create_envelope)
         .await
         .expect("Failed to send table create envelope");
-    validate_response_envelope(
-        &table_create_response,
-        &format!("{}-table-create", query_id),
-    )
-    .expect("Table create response validation failed");
+    validate_response_envelope(&table_create_response, &format!("{query_id}-table-create"))
+        .expect("Table create response validation failed");
 
     println!("✓ Database and table created successfully");
 
@@ -82,11 +78,11 @@ async fn test_filter_and_order_by() {
     ];
 
     let insert_query = create_insert_query(database_name, table_name, documents);
-    let insert_envelope = create_envelope(&format!("{}-insert", query_id), &insert_query);
+    let insert_envelope = create_envelope(&format!("{query_id}-insert"), &insert_query);
     let insert_response = send_envelope_to_server(&mut stream, &insert_envelope)
         .await
         .expect("Failed to send insert envelope");
-    validate_response_envelope(&insert_response, &format!("{}-insert", query_id))
+    validate_response_envelope(&insert_response, &format!("{query_id}-insert"))
         .expect("Insert response validation failed");
 
     println!("✓ Test documents inserted successfully");
@@ -215,8 +211,7 @@ async fn test_filter_order_limit_skip() {
     let table_name = &generate_unique_name("test_table_complex");
 
     println!(
-        "Testing complex chained operations, ID: {}, database: {}, table: {}",
-        query_id, database_name, table_name
+        "Testing complex chained operations, ID: {query_id}, database: {database_name}, table: {table_name}"
     );
 
     // Connect to the running server
@@ -226,24 +221,21 @@ async fn test_filter_order_limit_skip() {
 
     // Setup: Create database and table
     let db_create_query = create_database_create_query(database_name);
-    let db_create_envelope = create_envelope(&format!("{}-db-create", query_id), &db_create_query);
+    let db_create_envelope = create_envelope(&format!("{query_id}-db-create"), &db_create_query);
     let db_create_response = send_envelope_to_server(&mut stream, &db_create_envelope)
         .await
         .expect("Failed to send database create envelope");
-    validate_response_envelope(&db_create_response, &format!("{}-db-create", query_id))
+    validate_response_envelope(&db_create_response, &format!("{query_id}-db-create"))
         .expect("Database create response validation failed");
 
     let table_create_query = create_table_create_query(database_name, table_name);
     let table_create_envelope =
-        create_envelope(&format!("{}-table-create", query_id), &table_create_query);
+        create_envelope(&format!("{query_id}-table-create"), &table_create_query);
     let table_create_response = send_envelope_to_server(&mut stream, &table_create_envelope)
         .await
         .expect("Failed to send table create envelope");
-    validate_response_envelope(
-        &table_create_response,
-        &format!("{}-table-create", query_id),
-    )
-    .expect("Table create response validation failed");
+    validate_response_envelope(&table_create_response, &format!("{query_id}-table-create"))
+        .expect("Table create response validation failed");
 
     println!("✓ Database and table created successfully");
 
@@ -251,8 +243,8 @@ async fn test_filter_order_limit_skip() {
     let mut documents = Vec::new();
     for i in 1..=10 {
         documents.push(create_datum_object(vec![
-            ("id", create_string_datum(&format!("complex_{:03}", i))),
-            ("name", create_string_datum(&format!("Employee {}", i))),
+            ("id", create_string_datum(&format!("complex_{i:03}"))),
+            ("name", create_string_datum(&format!("Employee {i}"))),
             ("score", create_int_datum(50 + (i * 5) as i64)),
             ("active", create_bool_datum(i % 2 == 0)), // Even numbers are active
             (
@@ -263,11 +255,11 @@ async fn test_filter_order_limit_skip() {
     }
 
     let insert_query = create_insert_query(database_name, table_name, documents);
-    let insert_envelope = create_envelope(&format!("{}-insert", query_id), &insert_query);
+    let insert_envelope = create_envelope(&format!("{query_id}-insert"), &insert_query);
     let insert_response = send_envelope_to_server(&mut stream, &insert_envelope)
         .await
         .expect("Failed to send insert envelope");
-    validate_response_envelope(&insert_response, &format!("{}-insert", query_id))
+    validate_response_envelope(&insert_response, &format!("{query_id}-insert"))
         .expect("Insert response validation failed");
 
     println!("✓ Complex test dataset inserted successfully");
@@ -427,8 +419,7 @@ async fn test_count_with_filter() {
     let table_name = &generate_unique_name("test_table_count_filter");
 
     println!(
-        "Testing count with filter, ID: {}, database: {}, table: {}",
-        query_id, database_name, table_name
+        "Testing count with filter, ID: {query_id}, database: {database_name}, table: {table_name}"
     );
 
     // Connect to the running server
@@ -438,24 +429,21 @@ async fn test_count_with_filter() {
 
     // Setup: Create database and table
     let db_create_query = create_database_create_query(database_name);
-    let db_create_envelope = create_envelope(&format!("{}-db-create", query_id), &db_create_query);
+    let db_create_envelope = create_envelope(&format!("{query_id}-db-create"), &db_create_query);
     let db_create_response = send_envelope_to_server(&mut stream, &db_create_envelope)
         .await
         .expect("Failed to send database create envelope");
-    validate_response_envelope(&db_create_response, &format!("{}-db-create", query_id))
+    validate_response_envelope(&db_create_response, &format!("{query_id}-db-create"))
         .expect("Database create response validation failed");
 
     let table_create_query = create_table_create_query(database_name, table_name);
     let table_create_envelope =
-        create_envelope(&format!("{}-table-create", query_id), &table_create_query);
+        create_envelope(&format!("{query_id}-table-create"), &table_create_query);
     let table_create_response = send_envelope_to_server(&mut stream, &table_create_envelope)
         .await
         .expect("Failed to send table create envelope");
-    validate_response_envelope(
-        &table_create_response,
-        &format!("{}-table-create", query_id),
-    )
-    .expect("Table create response validation failed");
+    validate_response_envelope(&table_create_response, &format!("{query_id}-table-create"))
+        .expect("Table create response validation failed");
 
     println!("✓ Database and table created successfully");
 
@@ -489,11 +477,11 @@ async fn test_count_with_filter() {
     ];
 
     let insert_query = create_insert_query(database_name, table_name, documents);
-    let insert_envelope = create_envelope(&format!("{}-insert", query_id), &insert_query);
+    let insert_envelope = create_envelope(&format!("{query_id}-insert"), &insert_query);
     let insert_response = send_envelope_to_server(&mut stream, &insert_envelope)
         .await
         .expect("Failed to send insert envelope");
-    validate_response_envelope(&insert_response, &format!("{}-insert", query_id))
+    validate_response_envelope(&insert_response, &format!("{query_id}-insert"))
         .expect("Insert response validation failed");
 
     println!("✓ Test documents inserted successfully");
@@ -501,11 +489,11 @@ async fn test_count_with_filter() {
     // Count all documents first
     let total_count_query = create_count_query(database_name, table_name);
     let total_count_envelope =
-        create_envelope(&format!("{}-total-count", query_id), &total_count_query);
+        create_envelope(&format!("{query_id}-total-count"), &total_count_query);
     let total_count_response = send_envelope_to_server(&mut stream, &total_count_envelope)
         .await
         .expect("Failed to send total count envelope");
-    validate_response_envelope(&total_count_response, &format!("{}-total-count", query_id))
+    validate_response_envelope(&total_count_response, &format!("{query_id}-total-count"))
         .expect("Total count response validation failed");
 
     let total_count_datum = decode_response_payload(&total_count_response)
@@ -513,7 +501,7 @@ async fn test_count_with_filter() {
 
     match total_count_datum.value {
         Some(proto::datum::Value::Int(count)) => {
-            println!("✓ Total count: {}", count);
+            println!("✓ Total count: {count}");
         }
         _ => {
             println!("ℹ Total count: {:?}", total_count_datum.value);
@@ -575,28 +563,22 @@ async fn test_count_with_filter() {
     // Should return count of active documents (3)
     match response_datum.value {
         Some(proto::datum::Value::Int(count)) => {
-            println!("✓ Count with filter returned: {}", count);
+            println!("✓ Count with filter returned: {count}");
 
             // Should return 3 active documents
             if count >= 3 {
                 println!("✓ Count with filter returned expected number");
             } else {
-                println!(
-                    "ℹ Count with filter returned {} (expected 3 or more)",
-                    count
-                );
+                println!("ℹ Count with filter returned {count} (expected 3 or more)");
             }
         }
         Some(proto::datum::Value::Object(ref obj)) => {
             if let Some(count_field) = obj.fields.get("count") {
                 if let Some(proto::datum::Value::Int(count_val)) = &count_field.value {
-                    println!(
-                        "✓ Count with filter returned object with count: {}",
-                        count_val
-                    );
+                    println!("✓ Count with filter returned object with count: {count_val}");
                 }
             } else {
-                println!("✓ Count with filter returned object: {:?}", obj);
+                println!("✓ Count with filter returned object: {obj:?}");
             }
         }
         Some(proto::datum::Value::Null(_)) | None => {
@@ -620,8 +602,7 @@ async fn test_pagination_with_skip_and_limit() {
     let table_name = &generate_unique_name("test_table_pagination");
 
     println!(
-        "Testing pagination with skip and limit, ID: {}, database: {}, table: {}",
-        query_id, database_name, table_name
+        "Testing pagination with skip and limit, ID: {query_id}, database: {database_name}, table: {table_name}"
     );
 
     // Connect to the running server
@@ -631,24 +612,21 @@ async fn test_pagination_with_skip_and_limit() {
 
     // Setup: Create database and table
     let db_create_query = create_database_create_query(database_name);
-    let db_create_envelope = create_envelope(&format!("{}-db-create", query_id), &db_create_query);
+    let db_create_envelope = create_envelope(&format!("{query_id}-db-create"), &db_create_query);
     let db_create_response = send_envelope_to_server(&mut stream, &db_create_envelope)
         .await
         .expect("Failed to send database create envelope");
-    validate_response_envelope(&db_create_response, &format!("{}-db-create", query_id))
+    validate_response_envelope(&db_create_response, &format!("{query_id}-db-create"))
         .expect("Database create response validation failed");
 
     let table_create_query = create_table_create_query(database_name, table_name);
     let table_create_envelope =
-        create_envelope(&format!("{}-table-create", query_id), &table_create_query);
+        create_envelope(&format!("{query_id}-table-create"), &table_create_query);
     let table_create_response = send_envelope_to_server(&mut stream, &table_create_envelope)
         .await
         .expect("Failed to send table create envelope");
-    validate_response_envelope(
-        &table_create_response,
-        &format!("{}-table-create", query_id),
-    )
-    .expect("Table create response validation failed");
+    validate_response_envelope(&table_create_response, &format!("{query_id}-table-create"))
+        .expect("Table create response validation failed");
 
     println!("✓ Database and table created successfully");
 
@@ -656,29 +634,29 @@ async fn test_pagination_with_skip_and_limit() {
     let mut documents = Vec::new();
     for i in 1..=15 {
         documents.push(create_datum_object(vec![
-            ("id", create_string_datum(&format!("page_{:03}", i))),
-            ("title", create_string_datum(&format!("Page Item {}", i))),
+            ("id", create_string_datum(&format!("page_{i:03}"))),
+            ("title", create_string_datum(&format!("Page Item {i}"))),
             ("page_number", create_int_datum(i as i64)),
         ]));
     }
 
     let insert_query = create_insert_query(database_name, table_name, documents);
-    let insert_envelope = create_envelope(&format!("{}-insert", query_id), &insert_query);
+    let insert_envelope = create_envelope(&format!("{query_id}-insert"), &insert_query);
     let insert_response = send_envelope_to_server(&mut stream, &insert_envelope)
         .await
         .expect("Failed to send insert envelope");
-    validate_response_envelope(&insert_response, &format!("{}-insert", query_id))
+    validate_response_envelope(&insert_response, &format!("{query_id}-insert"))
         .expect("Insert response validation failed");
 
     println!("✓ Pagination test dataset (15 items) inserted successfully");
 
     // Test pagination: Page 1 (items 1-5)
     let page_1_query = create_limit_query(database_name, table_name, 5);
-    let page_1_envelope = create_envelope(&format!("{}-page-1", query_id), &page_1_query);
+    let page_1_envelope = create_envelope(&format!("{query_id}-page-1"), &page_1_query);
     let page_1_response = send_envelope_to_server(&mut stream, &page_1_envelope)
         .await
         .expect("Failed to send page 1 envelope");
-    validate_response_envelope(&page_1_response, &format!("{}-page-1", query_id))
+    validate_response_envelope(&page_1_response, &format!("{query_id}-page-1"))
         .expect("Page 1 response validation failed");
 
     let page_1_datum =
@@ -741,11 +719,11 @@ async fn test_pagination_with_skip_and_limit() {
         }))),
     };
 
-    let page_2_envelope = create_envelope(&format!("{}-page-2", query_id), &page_2_query);
+    let page_2_envelope = create_envelope(&format!("{query_id}-page-2"), &page_2_query);
     let page_2_response = send_envelope_to_server(&mut stream, &page_2_envelope)
         .await
         .expect("Failed to send page 2 envelope");
-    validate_response_envelope(&page_2_response, &format!("{}-page-2", query_id))
+    validate_response_envelope(&page_2_response, &format!("{query_id}-page-2"))
         .expect("Page 2 response validation failed");
 
     let page_2_datum =
@@ -808,11 +786,11 @@ async fn test_pagination_with_skip_and_limit() {
         }))),
     };
 
-    let page_3_envelope = create_envelope(&format!("{}-page-3", query_id), &page_3_query);
+    let page_3_envelope = create_envelope(&format!("{query_id}-page-3"), &page_3_query);
     let page_3_response = send_envelope_to_server(&mut stream, &page_3_envelope)
         .await
         .expect("Failed to send page 3 envelope");
-    validate_response_envelope(&page_3_response, &format!("{}-page-3", query_id))
+    validate_response_envelope(&page_3_response, &format!("{query_id}-page-3"))
         .expect("Page 3 response validation failed");
 
     let page_3_datum =

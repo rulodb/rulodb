@@ -10,8 +10,7 @@ async fn test_count_basic() {
     let table_name = &generate_unique_name("test_table_count_basic");
 
     println!(
-        "Testing basic count operation, ID: {}, database: {}, table: {}",
-        query_id, database_name, table_name
+        "Testing basic count operation, ID: {query_id}, database: {database_name}, table: {table_name}"
     );
 
     // Connect to the running server
@@ -21,24 +20,21 @@ async fn test_count_basic() {
 
     // Setup: Create database and table
     let db_create_query = create_database_create_query(database_name);
-    let db_create_envelope = create_envelope(&format!("{}-db-create", query_id), &db_create_query);
+    let db_create_envelope = create_envelope(&format!("{query_id}-db-create"), &db_create_query);
     let db_create_response = send_envelope_to_server(&mut stream, &db_create_envelope)
         .await
         .expect("Failed to send database create envelope");
-    validate_response_envelope(&db_create_response, &format!("{}-db-create", query_id))
+    validate_response_envelope(&db_create_response, &format!("{query_id}-db-create"))
         .expect("Database create response validation failed");
 
     let table_create_query = create_table_create_query(database_name, table_name);
     let table_create_envelope =
-        create_envelope(&format!("{}-table-create", query_id), &table_create_query);
+        create_envelope(&format!("{query_id}-table-create"), &table_create_query);
     let table_create_response = send_envelope_to_server(&mut stream, &table_create_envelope)
         .await
         .expect("Failed to send table create envelope");
-    validate_response_envelope(
-        &table_create_response,
-        &format!("{}-table-create", query_id),
-    )
-    .expect("Table create response validation failed");
+    validate_response_envelope(&table_create_response, &format!("{query_id}-table-create"))
+        .expect("Table create response validation failed");
 
     println!("✓ Database and table created successfully");
 
@@ -72,11 +68,11 @@ async fn test_count_basic() {
     ];
 
     let insert_query = create_insert_query(database_name, table_name, documents);
-    let insert_envelope = create_envelope(&format!("{}-insert", query_id), &insert_query);
+    let insert_envelope = create_envelope(&format!("{query_id}-insert"), &insert_query);
     let insert_response = send_envelope_to_server(&mut stream, &insert_envelope)
         .await
         .expect("Failed to send insert envelope");
-    validate_response_envelope(&insert_response, &format!("{}-insert", query_id))
+    validate_response_envelope(&insert_response, &format!("{query_id}-insert"))
         .expect("Insert response validation failed");
 
     println!("✓ Test documents inserted successfully");
@@ -99,28 +95,25 @@ async fn test_count_basic() {
     // Count should return a number representing the total documents
     match response_datum.value {
         Some(proto::datum::Value::Int(count)) => {
-            println!("✓ Count returned integer: {}", count);
+            println!("✓ Count returned integer: {count}");
 
             // Should return 5 documents
             if count >= 5 {
                 println!("✓ Count returned expected number of documents");
             } else {
-                println!("ℹ Count returned {} documents (expected 5 or more)", count);
+                println!("ℹ Count returned {count} documents (expected 5 or more)");
             }
         }
         Some(proto::datum::Value::Object(ref obj)) => {
             // Some implementations might return an object with count field
             if let Some(count_field) = obj.fields.get("count") {
                 if let Some(proto::datum::Value::Int(count_val)) = &count_field.value {
-                    println!("✓ Count returned object with count: {}", count_val);
+                    println!("✓ Count returned object with count: {count_val}");
                 } else {
-                    println!(
-                        "ℹ Count object has non-integer count field: {:?}",
-                        count_field
-                    );
+                    println!("ℹ Count object has non-integer count field: {count_field:?}");
                 }
             } else {
-                println!("✓ Count returned object: {:?}", obj);
+                println!("✓ Count returned object: {obj:?}");
             }
         }
         Some(proto::datum::Value::Null(_)) | None => {
@@ -144,8 +137,7 @@ async fn test_count_empty_table() {
     let table_name = &generate_unique_name("test_table_count_empty");
 
     println!(
-        "Testing count on empty table, ID: {}, database: {}, table: {}",
-        query_id, database_name, table_name
+        "Testing count on empty table, ID: {query_id}, database: {database_name}, table: {table_name}"
     );
 
     // Connect to the running server
@@ -155,24 +147,21 @@ async fn test_count_empty_table() {
 
     // Setup: Create database and table
     let db_create_query = create_database_create_query(database_name);
-    let db_create_envelope = create_envelope(&format!("{}-db-create", query_id), &db_create_query);
+    let db_create_envelope = create_envelope(&format!("{query_id}-db-create"), &db_create_query);
     let db_create_response = send_envelope_to_server(&mut stream, &db_create_envelope)
         .await
         .expect("Failed to send database create envelope");
-    validate_response_envelope(&db_create_response, &format!("{}-db-create", query_id))
+    validate_response_envelope(&db_create_response, &format!("{query_id}-db-create"))
         .expect("Database create response validation failed");
 
     let table_create_query = create_table_create_query(database_name, table_name);
     let table_create_envelope =
-        create_envelope(&format!("{}-table-create", query_id), &table_create_query);
+        create_envelope(&format!("{query_id}-table-create"), &table_create_query);
     let table_create_response = send_envelope_to_server(&mut stream, &table_create_envelope)
         .await
         .expect("Failed to send table create envelope");
-    validate_response_envelope(
-        &table_create_response,
-        &format!("{}-table-create", query_id),
-    )
-    .expect("Table create response validation failed");
+    validate_response_envelope(&table_create_response, &format!("{query_id}-table-create"))
+        .expect("Table create response validation failed");
 
     println!("✓ Database and table created successfully");
 
@@ -194,12 +183,12 @@ async fn test_count_empty_table() {
     // Count on empty table should return 0
     match response_datum.value {
         Some(proto::datum::Value::Int(count)) => {
-            println!("✓ Count on empty table returned: {}", count);
+            println!("✓ Count on empty table returned: {count}");
 
             if count == 0 {
                 println!("✓ Count on empty table returned 0 as expected");
             } else {
-                println!("ℹ Count on empty table returned {} (expected 0)", count);
+                println!("ℹ Count on empty table returned {count} (expected 0)");
             }
         }
         Some(proto::datum::Value::Object(ref obj)) => {
@@ -208,14 +197,11 @@ async fn test_count_empty_table() {
                     if *count_val == 0 {
                         println!("✓ Count on empty table returned object with count 0");
                     } else {
-                        println!(
-                            "ℹ Count on empty table returned object with count {}",
-                            count_val
-                        );
+                        println!("ℹ Count on empty table returned object with count {count_val}");
                     }
                 }
             } else {
-                println!("✓ Count on empty table returned object: {:?}", obj);
+                println!("✓ Count on empty table returned object: {obj:?}");
             }
         }
         Some(proto::datum::Value::Null(_)) | None => {
@@ -239,8 +225,7 @@ async fn test_count_with_timeout() {
     let table_name = &generate_unique_name("test_table_count_timeout");
 
     println!(
-        "Testing count with custom timeout, ID: {}, database: {}, table: {}",
-        query_id, database_name, table_name
+        "Testing count with custom timeout, ID: {query_id}, database: {database_name}, table: {table_name}"
     );
 
     // Connect to the running server
@@ -250,24 +235,21 @@ async fn test_count_with_timeout() {
 
     // Setup: Create database and table
     let db_create_query = create_database_create_query(database_name);
-    let db_create_envelope = create_envelope(&format!("{}-db-create", query_id), &db_create_query);
+    let db_create_envelope = create_envelope(&format!("{query_id}-db-create"), &db_create_query);
     let db_create_response = send_envelope_to_server(&mut stream, &db_create_envelope)
         .await
         .expect("Failed to send database create envelope");
-    validate_response_envelope(&db_create_response, &format!("{}-db-create", query_id))
+    validate_response_envelope(&db_create_response, &format!("{query_id}-db-create"))
         .expect("Database create response validation failed");
 
     let table_create_query = create_table_create_query(database_name, table_name);
     let table_create_envelope =
-        create_envelope(&format!("{}-table-create", query_id), &table_create_query);
+        create_envelope(&format!("{query_id}-table-create"), &table_create_query);
     let table_create_response = send_envelope_to_server(&mut stream, &table_create_envelope)
         .await
         .expect("Failed to send table create envelope");
-    validate_response_envelope(
-        &table_create_response,
-        &format!("{}-table-create", query_id),
-    )
-    .expect("Table create response validation failed");
+    validate_response_envelope(&table_create_response, &format!("{query_id}-table-create"))
+        .expect("Table create response validation failed");
 
     println!("✓ Database and table created successfully");
 
@@ -288,11 +270,11 @@ async fn test_count_with_timeout() {
     ];
 
     let insert_query = create_insert_query(database_name, table_name, documents);
-    let insert_envelope = create_envelope(&format!("{}-insert", query_id), &insert_query);
+    let insert_envelope = create_envelope(&format!("{query_id}-insert"), &insert_query);
     let insert_response = send_envelope_to_server(&mut stream, &insert_envelope)
         .await
         .expect("Failed to send insert envelope");
-    validate_response_envelope(&insert_response, &format!("{}-insert", query_id))
+    validate_response_envelope(&insert_response, &format!("{query_id}-insert"))
         .expect("Insert response validation failed");
 
     println!("✓ Test documents inserted successfully");
@@ -319,10 +301,10 @@ async fn test_count_with_timeout() {
     // Count with timeout should work normally
     match response_datum.value {
         Some(proto::datum::Value::Int(count)) => {
-            println!("✓ Count with timeout returned integer: {}", count);
+            println!("✓ Count with timeout returned integer: {count}");
         }
         Some(proto::datum::Value::Object(ref obj)) => {
-            println!("✓ Count with timeout returned object: {:?}", obj);
+            println!("✓ Count with timeout returned object: {obj:?}");
         }
         Some(proto::datum::Value::Null(_)) | None => {
             println!("✓ Count with timeout returned null/empty");
@@ -342,8 +324,7 @@ async fn test_count_nonexistent_table() {
     let table_name = &generate_unique_name("test_table_nonexistent");
 
     println!(
-        "Testing count on nonexistent table, ID: {}, database: {}, table: {}",
-        query_id, database_name, table_name
+        "Testing count on nonexistent table, ID: {query_id}, database: {database_name}, table: {table_name}"
     );
 
     // Connect to the running server
@@ -353,11 +334,11 @@ async fn test_count_nonexistent_table() {
 
     // Create database but not the table
     let db_create_query = create_database_create_query(database_name);
-    let db_create_envelope = create_envelope(&format!("{}-db-create", query_id), &db_create_query);
+    let db_create_envelope = create_envelope(&format!("{query_id}-db-create"), &db_create_query);
     let db_create_response = send_envelope_to_server(&mut stream, &db_create_envelope)
         .await
         .expect("Failed to send database create envelope");
-    validate_response_envelope(&db_create_response, &format!("{}-db-create", query_id))
+    validate_response_envelope(&db_create_response, &format!("{query_id}-db-create"))
         .expect("Database create response validation failed");
 
     println!("✓ Database created successfully");
@@ -381,7 +362,7 @@ async fn test_count_nonexistent_table() {
 
             match response_datum.value {
                 Some(proto::datum::Value::Int(count)) => {
-                    println!("  Count result: {}", count);
+                    println!("  Count result: {count}");
                     if count == 0 {
                         println!("  ✓ Nonexistent table returned count 0");
                     }
@@ -410,8 +391,7 @@ async fn test_count_large_dataset() {
     let table_name = &generate_unique_name("test_table_count_large");
 
     println!(
-        "Testing count with large dataset, ID: {}, database: {}, table: {}",
-        query_id, database_name, table_name
+        "Testing count with large dataset, ID: {query_id}, database: {database_name}, table: {table_name}"
     );
 
     // Connect to the running server
@@ -421,24 +401,21 @@ async fn test_count_large_dataset() {
 
     // Setup: Create database and table
     let db_create_query = create_database_create_query(database_name);
-    let db_create_envelope = create_envelope(&format!("{}-db-create", query_id), &db_create_query);
+    let db_create_envelope = create_envelope(&format!("{query_id}-db-create"), &db_create_query);
     let db_create_response = send_envelope_to_server(&mut stream, &db_create_envelope)
         .await
         .expect("Failed to send database create envelope");
-    validate_response_envelope(&db_create_response, &format!("{}-db-create", query_id))
+    validate_response_envelope(&db_create_response, &format!("{query_id}-db-create"))
         .expect("Database create response validation failed");
 
     let table_create_query = create_table_create_query(database_name, table_name);
     let table_create_envelope =
-        create_envelope(&format!("{}-table-create", query_id), &table_create_query);
+        create_envelope(&format!("{query_id}-table-create"), &table_create_query);
     let table_create_response = send_envelope_to_server(&mut stream, &table_create_envelope)
         .await
         .expect("Failed to send table create envelope");
-    validate_response_envelope(
-        &table_create_response,
-        &format!("{}-table-create", query_id),
-    )
-    .expect("Table create response validation failed");
+    validate_response_envelope(&table_create_response, &format!("{query_id}-table-create"))
+        .expect("Table create response validation failed");
 
     println!("✓ Database and table created successfully");
 
@@ -446,10 +423,10 @@ async fn test_count_large_dataset() {
     let mut documents = Vec::new();
     for i in 1..=25 {
         documents.push(create_datum_object(vec![
-            ("id", create_string_datum(&format!("large_doc_{:03}", i))),
+            ("id", create_string_datum(&format!("large_doc_{i:03}"))),
             (
                 "name",
-                create_string_datum(&format!("Large Dataset Document {}", i)),
+                create_string_datum(&format!("Large Dataset Document {i}")),
             ),
             ("index", create_int_datum(i as i64)),
             ("category", create_string_datum(&format!("cat_{}", i % 5))),
@@ -457,11 +434,11 @@ async fn test_count_large_dataset() {
     }
 
     let insert_query = create_insert_query(database_name, table_name, documents);
-    let insert_envelope = create_envelope(&format!("{}-insert", query_id), &insert_query);
+    let insert_envelope = create_envelope(&format!("{query_id}-insert"), &insert_query);
     let insert_response = send_envelope_to_server(&mut stream, &insert_envelope)
         .await
         .expect("Failed to send insert envelope");
-    validate_response_envelope(&insert_response, &format!("{}-insert", query_id))
+    validate_response_envelope(&insert_response, &format!("{query_id}-insert"))
         .expect("Insert response validation failed");
 
     println!("✓ Large dataset (25 documents) inserted successfully");
@@ -484,24 +461,21 @@ async fn test_count_large_dataset() {
     // Count should return the total number of documents
     match response_datum.value {
         Some(proto::datum::Value::Int(count)) => {
-            println!("✓ Count large dataset returned: {}", count);
+            println!("✓ Count large dataset returned: {count}");
 
             if count >= 25 {
                 println!("✓ Count returned expected number of documents for large dataset");
             } else {
-                println!("ℹ Count returned {} documents (expected 25 or more)", count);
+                println!("ℹ Count returned {count} documents (expected 25 or more)");
             }
         }
         Some(proto::datum::Value::Object(ref obj)) => {
             if let Some(count_field) = obj.fields.get("count") {
                 if let Some(proto::datum::Value::Int(count_val)) = &count_field.value {
-                    println!(
-                        "✓ Count large dataset returned object with count: {}",
-                        count_val
-                    );
+                    println!("✓ Count large dataset returned object with count: {count_val}");
                 }
             } else {
-                println!("✓ Count large dataset returned object: {:?}", obj);
+                println!("✓ Count large dataset returned object: {obj:?}");
             }
         }
         Some(proto::datum::Value::Null(_)) | None => {
@@ -522,8 +496,7 @@ async fn test_count_after_operations() {
     let table_name = &generate_unique_name("test_table_count_after_ops");
 
     println!(
-        "Testing count after insert/delete operations, ID: {}, database: {}, table: {}",
-        query_id, database_name, table_name
+        "Testing count after insert/delete operations, ID: {query_id}, database: {database_name}, table: {table_name}"
     );
 
     // Connect to the running server
@@ -533,35 +506,32 @@ async fn test_count_after_operations() {
 
     // Setup: Create database and table
     let db_create_query = create_database_create_query(database_name);
-    let db_create_envelope = create_envelope(&format!("{}-db-create", query_id), &db_create_query);
+    let db_create_envelope = create_envelope(&format!("{query_id}-db-create"), &db_create_query);
     let db_create_response = send_envelope_to_server(&mut stream, &db_create_envelope)
         .await
         .expect("Failed to send database create envelope");
-    validate_response_envelope(&db_create_response, &format!("{}-db-create", query_id))
+    validate_response_envelope(&db_create_response, &format!("{query_id}-db-create"))
         .expect("Database create response validation failed");
 
     let table_create_query = create_table_create_query(database_name, table_name);
     let table_create_envelope =
-        create_envelope(&format!("{}-table-create", query_id), &table_create_query);
+        create_envelope(&format!("{query_id}-table-create"), &table_create_query);
     let table_create_response = send_envelope_to_server(&mut stream, &table_create_envelope)
         .await
         .expect("Failed to send table create envelope");
-    validate_response_envelope(
-        &table_create_response,
-        &format!("{}-table-create", query_id),
-    )
-    .expect("Table create response validation failed");
+    validate_response_envelope(&table_create_response, &format!("{query_id}-table-create"))
+        .expect("Table create response validation failed");
 
     println!("✓ Database and table created successfully");
 
     // Count empty table first
     let count_empty_query = create_count_query(database_name, table_name);
     let count_empty_envelope =
-        create_envelope(&format!("{}-count-empty", query_id), &count_empty_query);
+        create_envelope(&format!("{query_id}-count-empty"), &count_empty_query);
     let count_empty_response = send_envelope_to_server(&mut stream, &count_empty_envelope)
         .await
         .expect("Failed to send count empty envelope");
-    validate_response_envelope(&count_empty_response, &format!("{}-count-empty", query_id))
+    validate_response_envelope(&count_empty_response, &format!("{query_id}-count-empty"))
         .expect("Count empty response validation failed");
 
     let count_empty_datum = decode_response_payload(&count_empty_response)
@@ -569,7 +539,7 @@ async fn test_count_after_operations() {
 
     match count_empty_datum.value {
         Some(proto::datum::Value::Int(count)) => {
-            println!("✓ Initial count (empty table): {}", count);
+            println!("✓ Initial count (empty table): {count}");
         }
         _ => {
             println!("ℹ Initial count: {:?}", count_empty_datum.value);
@@ -593,11 +563,11 @@ async fn test_count_after_operations() {
     ];
 
     let insert_query = create_insert_query(database_name, table_name, documents);
-    let insert_envelope = create_envelope(&format!("{}-insert", query_id), &insert_query);
+    let insert_envelope = create_envelope(&format!("{query_id}-insert"), &insert_query);
     let insert_response = send_envelope_to_server(&mut stream, &insert_envelope)
         .await
         .expect("Failed to send insert envelope");
-    validate_response_envelope(&insert_response, &format!("{}-insert", query_id))
+    validate_response_envelope(&insert_response, &format!("{query_id}-insert"))
         .expect("Insert response validation failed");
 
     println!("✓ Documents inserted successfully");
@@ -605,7 +575,7 @@ async fn test_count_after_operations() {
     // Count after insert
     let count_after_insert_query = create_count_query(database_name, table_name);
     let count_after_insert_envelope = create_envelope(
-        &format!("{}-count-after-insert", query_id),
+        &format!("{query_id}-count-after-insert"),
         &count_after_insert_query,
     );
     let count_after_insert_response =
@@ -614,7 +584,7 @@ async fn test_count_after_operations() {
             .expect("Failed to send count after insert envelope");
     validate_response_envelope(
         &count_after_insert_response,
-        &format!("{}-count-after-insert", query_id),
+        &format!("{query_id}-count-after-insert"),
     )
     .expect("Count after insert response validation failed");
 
@@ -623,7 +593,7 @@ async fn test_count_after_operations() {
 
     match count_after_insert_datum.value {
         Some(proto::datum::Value::Int(count)) => {
-            println!("✓ Count after insert: {}", count);
+            println!("✓ Count after insert: {count}");
             if count >= 3 {
                 println!("✓ Count increased after insert as expected");
             }
@@ -635,11 +605,11 @@ async fn test_count_after_operations() {
 
     // Delete all documents
     let delete_query = create_delete_query(database_name, table_name);
-    let delete_envelope = create_envelope(&format!("{}-delete", query_id), &delete_query);
+    let delete_envelope = create_envelope(&format!("{query_id}-delete"), &delete_query);
     let delete_response = send_envelope_to_server(&mut stream, &delete_envelope)
         .await
         .expect("Failed to send delete envelope");
-    validate_response_envelope(&delete_response, &format!("{}-delete", query_id))
+    validate_response_envelope(&delete_response, &format!("{query_id}-delete"))
         .expect("Delete response validation failed");
 
     println!("✓ Documents deleted successfully");
@@ -647,7 +617,7 @@ async fn test_count_after_operations() {
     // Count after delete
     let count_after_delete_query = create_count_query(database_name, table_name);
     let count_after_delete_envelope = create_envelope(
-        &format!("{}-count-after-delete", query_id),
+        &format!("{query_id}-count-after-delete"),
         &count_after_delete_query,
     );
     let count_after_delete_response =
@@ -656,7 +626,7 @@ async fn test_count_after_operations() {
             .expect("Failed to send count after delete envelope");
     validate_response_envelope(
         &count_after_delete_response,
-        &format!("{}-count-after-delete", query_id),
+        &format!("{query_id}-count-after-delete"),
     )
     .expect("Count after delete response validation failed");
 
@@ -665,7 +635,7 @@ async fn test_count_after_operations() {
 
     match count_after_delete_datum.value {
         Some(proto::datum::Value::Int(count)) => {
-            println!("✓ Count after delete: {}", count);
+            println!("✓ Count after delete: {count}");
             if count == 0 {
                 println!("✓ Count returned to 0 after delete as expected");
             }
@@ -685,8 +655,7 @@ async fn test_count_consistency() {
     let table_name = &generate_unique_name("test_table_count_consistency");
 
     println!(
-        "Testing count consistency across multiple requests, ID: {}, database: {}, table: {}",
-        query_id, database_name, table_name
+        "Testing count consistency across multiple requests, ID: {query_id}, database: {database_name}, table: {table_name}"
     );
 
     // Connect to the running server
@@ -696,24 +665,21 @@ async fn test_count_consistency() {
 
     // Setup: Create database and table
     let db_create_query = create_database_create_query(database_name);
-    let db_create_envelope = create_envelope(&format!("{}-db-create", query_id), &db_create_query);
+    let db_create_envelope = create_envelope(&format!("{query_id}-db-create"), &db_create_query);
     let db_create_response = send_envelope_to_server(&mut stream, &db_create_envelope)
         .await
         .expect("Failed to send database create envelope");
-    validate_response_envelope(&db_create_response, &format!("{}-db-create", query_id))
+    validate_response_envelope(&db_create_response, &format!("{query_id}-db-create"))
         .expect("Database create response validation failed");
 
     let table_create_query = create_table_create_query(database_name, table_name);
     let table_create_envelope =
-        create_envelope(&format!("{}-table-create", query_id), &table_create_query);
+        create_envelope(&format!("{query_id}-table-create"), &table_create_query);
     let table_create_response = send_envelope_to_server(&mut stream, &table_create_envelope)
         .await
         .expect("Failed to send table create envelope");
-    validate_response_envelope(
-        &table_create_response,
-        &format!("{}-table-create", query_id),
-    )
-    .expect("Table create response validation failed");
+    validate_response_envelope(&table_create_response, &format!("{query_id}-table-create"))
+        .expect("Table create response validation failed");
 
     println!("✓ Database and table created successfully");
 
@@ -734,11 +700,11 @@ async fn test_count_consistency() {
     ];
 
     let insert_query = create_insert_query(database_name, table_name, documents);
-    let insert_envelope = create_envelope(&format!("{}-insert", query_id), &insert_query);
+    let insert_envelope = create_envelope(&format!("{query_id}-insert"), &insert_query);
     let insert_response = send_envelope_to_server(&mut stream, &insert_envelope)
         .await
         .expect("Failed to send insert envelope");
-    validate_response_envelope(&insert_response, &format!("{}-insert", query_id))
+    validate_response_envelope(&insert_response, &format!("{query_id}-insert"))
         .expect("Insert response validation failed");
 
     println!("✓ Test documents inserted successfully");
@@ -747,14 +713,13 @@ async fn test_count_consistency() {
     let mut counts = Vec::new();
     for i in 1..=5 {
         let count_query = create_count_query(database_name, table_name);
-        let count_envelope =
-            create_envelope(&format!("{}-consistency-{}", query_id, i), &count_query);
+        let count_envelope = create_envelope(&format!("{query_id}-consistency-{i}"), &count_query);
 
         let count_response = send_envelope_to_server(&mut stream, &count_envelope)
             .await
             .expect("Failed to send count envelope");
 
-        validate_response_envelope(&count_response, &format!("{}-consistency-{}", query_id, i))
+        validate_response_envelope(&count_response, &format!("{query_id}-consistency-{i}"))
             .expect("Count response validation failed");
 
         let count_datum =
@@ -763,13 +728,13 @@ async fn test_count_consistency() {
         match count_datum.value {
             Some(proto::datum::Value::Int(count)) => {
                 counts.push(count);
-                println!("  Count query {}: {}", i, count);
+                println!("  Count query {i}: {count}");
             }
             Some(proto::datum::Value::Object(ref obj)) => {
                 if let Some(count_field) = obj.fields.get("count") {
                     if let Some(proto::datum::Value::Int(count_val)) = &count_field.value {
                         counts.push(*count_val);
-                        println!("  Count query {}: {} (from object)", i, count_val);
+                        println!("  Count query {i}: {count_val} (from object)");
                     }
                 }
             }
@@ -785,12 +750,9 @@ async fn test_count_consistency() {
         let all_same = counts.iter().all(|&count| count == first_count);
 
         if all_same {
-            println!(
-                "✓ All count queries returned consistent result: {}",
-                first_count
-            );
+            println!("✓ All count queries returned consistent result: {first_count}");
         } else {
-            println!("ℹ Count queries returned different results: {:?}", counts);
+            println!("ℹ Count queries returned different results: {counts:?}");
         }
     } else {
         println!("ℹ Insufficient count results to check consistency");

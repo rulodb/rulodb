@@ -145,20 +145,20 @@ mod tests {
     fn test_parse_error_display() {
         let decode_error = prost::DecodeError::new("test decode error");
         let parse_error = ParseError::InvalidProtobuf(decode_error);
-        let display_string = format!("{}", parse_error);
+        let display_string = format!("{parse_error}");
         assert!(display_string.contains("Invalid protobuf"));
         assert!(display_string.contains("test decode error"));
 
         let missing_field_error = ParseError::MissingField("test_field".to_string());
-        let display_string = format!("{}", missing_field_error);
+        let display_string = format!("{missing_field_error}");
         assert_eq!(display_string, "Missing required field: test_field");
 
         let invalid_structure_error = ParseError::InvalidStructure("test structure".to_string());
-        let display_string = format!("{}", invalid_structure_error);
+        let display_string = format!("{invalid_structure_error}");
         assert_eq!(display_string, "Invalid structure: test structure");
 
         let unexpected_value_error = ParseError::UnexpectedValue("test value".to_string());
-        let display_string = format!("{}", unexpected_value_error);
+        let display_string = format!("{unexpected_value_error}");
         assert_eq!(display_string, "Unexpected value: test value");
     }
 
@@ -193,21 +193,21 @@ mod tests {
     fn test_parse_error_debug() {
         let decode_error = prost::DecodeError::new("test decode error");
         let parse_error = ParseError::InvalidProtobuf(decode_error);
-        let debug_string = format!("{:?}", parse_error);
+        let debug_string = format!("{parse_error:?}");
         assert!(debug_string.contains("InvalidProtobuf"));
 
         let missing_field_error = ParseError::MissingField("test_field".to_string());
-        let debug_string = format!("{:?}", missing_field_error);
+        let debug_string = format!("{missing_field_error:?}");
         assert!(debug_string.contains("MissingField"));
         assert!(debug_string.contains("test_field"));
 
         let invalid_structure_error = ParseError::InvalidStructure("test structure".to_string());
-        let debug_string = format!("{:?}", invalid_structure_error);
+        let debug_string = format!("{invalid_structure_error:?}");
         assert!(debug_string.contains("InvalidStructure"));
         assert!(debug_string.contains("test structure"));
 
         let unexpected_value_error = ParseError::UnexpectedValue("test value".to_string());
-        let debug_string = format!("{:?}", unexpected_value_error);
+        let debug_string = format!("{unexpected_value_error:?}");
         assert!(debug_string.contains("UnexpectedValue"));
         assert!(debug_string.contains("test value"));
     }

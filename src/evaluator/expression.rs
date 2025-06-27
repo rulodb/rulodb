@@ -189,7 +189,7 @@ impl ExpressionEvaluator {
         match Regex::new(&pattern_str) {
             Ok(re) => re.is_match(text.as_bytes()).unwrap_or(false),
             Err(err) => {
-                log::debug!("Regex compile error: {}", err);
+                log::debug!("Regex compile error: {err}");
                 false
             }
         }

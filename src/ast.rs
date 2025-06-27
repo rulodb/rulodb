@@ -78,58 +78,58 @@ mod tests {
     #[test]
     fn test_datum_value_display_bool() {
         let value = datum::Value::Bool(true);
-        assert_eq!(format!("{}", value), "true");
+        assert_eq!(format!("{value}"), "true");
 
         let value = datum::Value::Bool(false);
-        assert_eq!(format!("{}", value), "false");
+        assert_eq!(format!("{value}"), "false");
     }
 
     #[test]
     fn test_datum_value_display_int() {
         let value = datum::Value::Int(42);
-        assert_eq!(format!("{}", value), "42");
+        assert_eq!(format!("{value}"), "42");
 
         let value = datum::Value::Int(-123);
-        assert_eq!(format!("{}", value), "-123");
+        assert_eq!(format!("{value}"), "-123");
 
         let value = datum::Value::Int(0);
-        assert_eq!(format!("{}", value), "0");
+        assert_eq!(format!("{value}"), "0");
     }
 
     #[test]
     fn test_datum_value_display_float() {
         let value = datum::Value::Float(3.15);
-        assert_eq!(format!("{}", value), "3.15");
+        assert_eq!(format!("{value}"), "3.15");
 
         let value = datum::Value::Float(-2.5);
-        assert_eq!(format!("{}", value), "-2.5");
+        assert_eq!(format!("{value}"), "-2.5");
 
         let value = datum::Value::Float(0.0);
-        assert_eq!(format!("{}", value), "0");
+        assert_eq!(format!("{value}"), "0");
     }
 
     #[test]
     fn test_datum_value_display_string() {
         let value = datum::Value::String("hello".to_string());
-        assert_eq!(format!("{}", value), "hello");
+        assert_eq!(format!("{value}"), "hello");
 
         let value = datum::Value::String("".to_string());
-        assert_eq!(format!("{}", value), "");
+        assert_eq!(format!("{value}"), "");
 
         let value = datum::Value::String("multi word string".to_string());
-        assert_eq!(format!("{}", value), "multi word string");
+        assert_eq!(format!("{value}"), "multi word string");
     }
 
     #[test]
     fn test_datum_value_display_binary() {
         let value = datum::Value::Binary(vec![1, 2, 3]);
-        assert_eq!(format!("{}", value), "[1, 2, 3]");
+        assert_eq!(format!("{value}"), "[1, 2, 3]");
 
         let value = datum::Value::Binary(vec![]);
-        assert_eq!(format!("{}", value), "[]");
+        assert_eq!(format!("{value}"), "[]");
 
         let value = datum::Value::Binary(vec![255, 0, 128]);
-        assert_eq!(format!("{}", value), "[255, 0, 128]");
+        assert_eq!(format!("{value}"), "[255, 0, 128]");
     }
 
     #[test]
@@ -151,7 +151,7 @@ mod tests {
         let object = DatumObject { fields };
 
         let value = datum::Value::Object(object);
-        let result = format!("{}", value);
+        let result = format!("{value}");
 
         // Since HashMap iteration order is not guaranteed, check that both possible orders are valid
         assert!(result == "{name: John, age: 30}" || result == "{age: 30, name: John}");
@@ -177,13 +177,13 @@ mod tests {
         };
 
         let value = datum::Value::Array(array);
-        assert_eq!(format!("{}", value), "[first, 42, true]");
+        assert_eq!(format!("{value}"), "[first, 42, true]");
     }
 
     #[test]
     fn test_datum_value_display_null() {
         let value = datum::Value::Null(NullValue::NullValue.into());
-        assert_eq!(format!("{}", value), "NULL");
+        assert_eq!(format!("{value}"), "NULL");
     }
 
     #[test]
@@ -191,23 +191,23 @@ mod tests {
         let datum = Datum {
             value: Some(datum::Value::String("test".to_string())),
         };
-        assert_eq!(format!("{}", datum), "test");
+        assert_eq!(format!("{datum}"), "test");
 
         let datum = Datum {
             value: Some(datum::Value::Int(123)),
         };
-        assert_eq!(format!("{}", datum), "123");
+        assert_eq!(format!("{datum}"), "123");
 
         let datum = Datum {
             value: Some(datum::Value::Bool(false)),
         };
-        assert_eq!(format!("{}", datum), "false");
+        assert_eq!(format!("{datum}"), "false");
     }
 
     #[test]
     fn test_datum_display_none() {
         let datum = Datum { value: None };
-        assert_eq!(format!("{}", datum), "NULL");
+        assert_eq!(format!("{datum}"), "NULL");
     }
 
     #[test]
@@ -215,7 +215,7 @@ mod tests {
         let object = DatumObject {
             fields: HashMap::new(),
         };
-        assert_eq!(format!("{}", object), "{}");
+        assert_eq!(format!("{object}"), "{}");
     }
 
     #[test]
@@ -229,7 +229,7 @@ mod tests {
         );
 
         let object = DatumObject { fields };
-        assert_eq!(format!("{}", object), "{key: value}");
+        assert_eq!(format!("{object}"), "{key: value}");
     }
 
     #[test]
@@ -256,7 +256,7 @@ mod tests {
 
         let object = DatumObject { fields };
 
-        let result = format!("{}", object);
+        let result = format!("{object}");
 
         // Check that the result contains all expected key-value pairs
         assert!(result.starts_with('{'));
@@ -292,7 +292,7 @@ mod tests {
             fields: outer_fields,
         };
 
-        assert_eq!(format!("{}", outer_object), "{object: {inner: nested}}");
+        assert_eq!(format!("{outer_object}"), "{object: {inner: nested}}");
     }
 
     #[test]
@@ -301,7 +301,7 @@ mod tests {
             items: vec![],
             element_type: "string".to_string(),
         };
-        assert_eq!(format!("{}", array), "[]");
+        assert_eq!(format!("{array}"), "[]");
     }
 
     #[test]
@@ -314,7 +314,7 @@ mod tests {
             items,
             element_type: "string".to_string(),
         };
-        assert_eq!(format!("{}", array), "[only]");
+        assert_eq!(format!("{array}"), "[only]");
     }
 
     #[test]
@@ -335,7 +335,7 @@ mod tests {
             items,
             element_type: "string".to_string(),
         };
-        assert_eq!(format!("{}", array), "[first, second, third]");
+        assert_eq!(format!("{array}"), "[first, second, third]");
     }
 
     #[test]
@@ -360,7 +360,7 @@ mod tests {
             items,
             element_type: "mixed".to_string(),
         };
-        assert_eq!(format!("{}", array), "[text, 123, true, 3.15, NULL]");
+        assert_eq!(format!("{array}"), "[text, 123, true, 3.15, NULL]");
     }
 
     #[test]
@@ -396,7 +396,7 @@ mod tests {
             element_type: "mixed".to_string(),
         };
 
-        assert_eq!(format!("{}", outer_array), "[before, [1, 2], after]");
+        assert_eq!(format!("{outer_array}"), "[before, [1, 2], after]");
     }
 
     #[test]
@@ -456,7 +456,7 @@ mod tests {
             fields: root_fields,
         };
 
-        let result = format!("{}", root_object);
+        let result = format!("{root_object}");
 
         // Check that all components are present in the output
         assert!(result.contains("Alice"));
@@ -479,7 +479,7 @@ mod tests {
 
         let object = DatumObject { fields };
 
-        let result = format!("{}", object);
+        let result = format!("{object}");
         // Both should display as NULL
         assert!(result.contains("null_field: NULL"));
         assert!(result.contains("none_field: NULL"));
@@ -488,29 +488,29 @@ mod tests {
     #[test]
     fn test_special_characters_in_strings() {
         let value = datum::Value::String("Hello\nWorld\t\"Test\"".to_string());
-        assert_eq!(format!("{}", value), "Hello\nWorld\t\"Test\"");
+        assert_eq!(format!("{value}"), "Hello\nWorld\t\"Test\"");
 
         let value = datum::Value::String("UTF-8: 中文 🚀".to_string());
-        assert_eq!(format!("{}", value), "UTF-8: 中文 🚀");
+        assert_eq!(format!("{value}"), "UTF-8: 中文 🚀");
     }
 
     #[test]
     fn test_large_numbers() {
         let value = datum::Value::Int(i64::MAX);
-        assert_eq!(format!("{}", value), "9223372036854775807");
+        assert_eq!(format!("{value}"), "9223372036854775807");
 
         let value = datum::Value::Int(i64::MIN);
-        assert_eq!(format!("{}", value), "-9223372036854775808");
+        assert_eq!(format!("{value}"), "-9223372036854775808");
 
         let value = datum::Value::Float(f64::MAX);
         assert_eq!(
-            format!("{}", value),
+            format!("{value}"),
             "179769313486231570000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
         );
 
         let value = datum::Value::Float(f64::MIN);
         assert_eq!(
-            format!("{}", value),
+            format!("{value}"),
             "-179769313486231570000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
         );
     }
