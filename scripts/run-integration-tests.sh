@@ -75,31 +75,54 @@ for i in {1..30}; do
 done
 
 # Run integration tests
-echo -e "${YELLOW}Running all integration tests at once...${NC}"
+echo -e "${YELLOW}Running integration tests...${NC}"
 
-# Build list of integration test binaries
-INTEGRATION_TESTS=""
-for test_file in tests/integration_*.rs; do
-    if [ -f "$test_file" ]; then
-        test_name=$(basename "${test_file}" .rs)
-        INTEGRATION_TESTS="${INTEGRATION_TESTS} --test ${test_name}"
-    fi
-done
-
-if [ -z "${INTEGRATION_TESTS}" ]; then
+# Check if integration test files exist
+if ! ls tests/integration_*.rs >/dev/null 2>&1; then
     echo -e "${RED}No integration test files found matching tests/integration_*.rs${NC}"
     exit 1
 fi
 
-echo -e "${YELLOW}Running integration test binaries:${INTEGRATION_TESTS}${NC}"
+# Initialize test tracking
+TOTAL_TESTS=0
+PASSED_TESTS=0
+FAILED_TESTS=0
 
-# Run all integration tests in a single command
-if RUST_LOG=info cargo test "${INTEGRATION_TESTS}" -- --test-threads=1; then
-    echo -e "${GREEN}✓ All integration tests passed!${NC}"
-    exit 0
-else
-    echo -e "${RED}✗ Some integration tests failed${NC}"
+# Run each integration test individually
+for test_file in tests/integration_*.rs; do
+    if [ -f "$test_file" ]; then
+        test_name=$(basename "${test_file}" .rs)
+        echo -e "${YELLOW}Running ${test_name}...${NC}"
+
+        TOTAL_TESTS=$((TOTAL_TESTS + 1))
+
+        if RUST_LOG=info cargo test --test "${test_name}" -- --test-threads=1 2>&1; then
+            echo -e "${GREEN}✓ ${test_name} passed${NC}"
+            PASSED_TESTS=$((PASSED_TESTS + 1))
+        else
+            echo -e "${RED}✗ ${test_name} failed${NC}"
+            FAILED_TESTS=$((FAILED_TESTS + 1))
+            # Don't exit immediately, continue with other tests
+        fi
+        echo ""
+    fi
+done
+
+if [ "${TOTAL_TESTS}" -eq 0 ]; then
+    echo -e "${RED}No valid integration test files found${NC}"
+    exit 1
+fi
+
+# Print summary
+echo -e "${YELLOW}=== Test Summary ===${NC}"
+echo -e "Total: ${TOTAL_TESTS}"
+echo -e "${GREEN}Passed: ${PASSED_TESTS}${NC}"
+if [ "${FAILED_TESTS}" -gt 0 ]; then
+    echo -e "${RED}Failed: ${FAILED_TESTS}${NC}"
     echo -e "${RED}Server log (last 50 lines):${NC}"
     tail -n 50 $SERVER_LOG 2>/dev/null || echo "No server log found"
     exit 1
+else
+    echo -e "${GREEN}✓ All integration tests passed!${NC}"
+    exit 0
 fi
