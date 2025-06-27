@@ -403,6 +403,63 @@ export class RQuery<
     );
   }
 
+  /**
+   * Pluck specific fields from documents (available on TableQuery and StreamQuery)
+   */
+  pluck<TResult = TDoc, K extends NestedKeyOf<TResult> = NestedKeyOf<TResult>>(
+    this: RQuery<TableQuery<TDoc> | StreamQuery<TDoc>, TDbName, TDoc>,
+    ...fields: K[]
+  ): RQuery<StreamQuery<TResult>, TDbName, TResult>;
+  pluck<TResult = TDoc, K extends NestedKeyOf<TResult> = NestedKeyOf<TResult>>(
+    this: RQuery<TableQuery<TDoc> | StreamQuery<TDoc>, TDbName, TDoc>,
+    fields: K[]
+  ): RQuery<StreamQuery<TResult>, TDbName, TResult>;
+  pluck<TResult = TDoc, K extends NestedKeyOf<TResult> = NestedKeyOf<TResult>>(
+    this: RQuery<TableQuery<TDoc> | StreamQuery<TDoc>, TDbName, TDoc>,
+    fields: K[],
+    options: { separator?: string }
+  ): RQuery<StreamQuery<TResult>, TDbName, TResult>;
+  pluck<TResult = TDoc, K extends NestedKeyOf<TResult> = NestedKeyOf<TResult>>(
+    this: RQuery<TableQuery<TDoc> | StreamQuery<TDoc>, TDbName, TDoc>,
+    fieldsOrFirst: K[] | K,
+    ...args: unknown[]
+  ): RQuery<StreamQuery<TResult>, TDbName, TResult> {
+    let fields: string[];
+    let separator = '.';
+
+    if (Array.isArray(fieldsOrFirst)) {
+      fields = fieldsOrFirst;
+      if (
+        args.length > 0 &&
+        typeof args[0] === 'object' &&
+        args[0] !== null &&
+        !Array.isArray(args[0])
+      ) {
+        separator = (args[0] as { separator?: string }).separator || '.';
+      }
+    } else {
+      fields = [fieldsOrFirst, ...(args as K[])];
+    }
+
+    const fieldRefs = fields.map((field) => ({
+      path: String(field).split(separator),
+      separator
+    }));
+
+    const query: Query = {
+      pluck: {
+        source: this._query,
+        fields: fieldRefs
+      }
+    };
+
+    return new RQuery<StreamQuery<TResult>, TDbName, TResult>(
+      query,
+      { _type: 'stream', _docType: undefined as TResult },
+      this._dbName
+    );
+  }
+
   // ========== Modification Operations ==========
 
   /**

@@ -337,6 +337,17 @@ impl Evaluator {
                     .count_documents_streaming(source, &mut self.stats)
                     .await
             }
+            PlanNode::Pluck { source, fields, .. } => {
+                let source_result = Box::pin(self.execute_plan(source)).await?;
+                self.query_processor
+                    .pluck_documents_streaming(
+                        source_result,
+                        self.cursor_context.clone(),
+                        fields,
+                        &mut self.stats,
+                    )
+                    .await
+            }
 
             // Subqueries
             PlanNode::Subquery { query, .. } => Box::pin(self.execute_plan(query)).await,

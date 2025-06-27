@@ -149,29 +149,37 @@ message Query {
   Cursor cursor = 2;
 
   oneof kind {
+    // Data Manipulation
     Insert insert = 3;
     Delete delete = 4;
     Update update = 5;
 
+    // Querying & Data Retrieval
     Table table = 6;
     Get get = 7;
     GetAll get_all = 8;
-
     Filter filter = 9;
+
+    // Transformations
     OrderBy order_by = 10;
     Limit limit = 11;
     Skip skip = 12;
 
+    // Aggregation & Grouping
     Count count = 13;
 
+    // Document Manipulation
+    Pluck pluck = 22;
+
+    // Schema & Data Modeling
     TableCreate table_create = 14;
     TableDrop table_drop = 15;
     DatabaseCreate database_create = 16;
     DatabaseDrop database_drop = 17;
-
     TableList table_list = 18;
     DatabaseList database_list = 19;
 
+    // Control & Execution
     Expression expression = 20;
     Subquery subquery = 21;
   }
@@ -213,6 +221,11 @@ message Skip {
 }
 
 message Count { Query source = 1; }
+
+message Pluck {
+  Query source = 1;
+  repeated FieldRef fields = 2;
+}
 
 // Data Manipulation
 message Insert {
@@ -331,6 +344,7 @@ message QueryResult {
     LimitResult limit = 7;
     SkipResult skip = 8;
     CountResult count = 9;
+    PluckResult pluck = 19;
 
     InsertResult insert = 10;
     DeleteResult delete = 11;
@@ -381,6 +395,11 @@ message SkipResult {
 }
 
 message CountResult { uint64 count = 1; }
+
+message PluckResult {
+  repeated Datum documents = 1;
+  Cursor cursor = 2;
+}
 
 // Manipulation Results
 message InsertResult {

@@ -345,6 +345,14 @@ export class Connection extends EventEmitter {
       );
     }
 
+    if (queryResult.pluck) {
+      return this.convertArrayResult(
+        queryResult.pluck.documents,
+        queryResult.pluck.cursor,
+        resultMetadata
+      );
+    }
+
     // Handle operation results
     if (queryResult.insert) {
       return {

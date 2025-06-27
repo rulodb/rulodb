@@ -221,6 +221,12 @@ pub fn decode_response_payload(
                             element_type: String::new(),
                         })),
                     }),
+                    Some(proto::query_result::Result::Pluck(pluck_result)) => Ok(proto::Datum {
+                        value: Some(proto::datum::Value::Array(proto::DatumArray {
+                            items: pluck_result.documents,
+                            element_type: String::new(),
+                        })),
+                    }),
                     Some(proto::query_result::Result::Count(count_result)) => Ok(proto::Datum {
                         value: Some(proto::datum::Value::Int(count_result.count as i64)),
                     }),
@@ -781,6 +787,37 @@ pub fn create_binary_expression(
             op: operator.into(),
             left: Some(Box::new(left)),
             right: Some(Box::new(right)),
+        }))),
+    }
+}
+
+/// Helper function to create a pluck query
+#[allow(dead_code)]
+pub fn create_pluck_query(
+    database_name: &str,
+    table_name: &str,
+    fields: Vec<proto::FieldRef>,
+) -> proto::Query {
+    proto::Query {
+        options: Some(proto::QueryOptions {
+            timeout_ms: 30000,
+            explain: false,
+        }),
+        cursor: None,
+        kind: Some(proto::query::Kind::Pluck(Box::new(proto::Pluck {
+            source: Some(Box::new(proto::Query {
+                options: None,
+                cursor: None,
+                kind: Some(proto::query::Kind::Table(proto::Table {
+                    table: Some(proto::TableRef {
+                        database: Some(proto::DatabaseRef {
+                            name: database_name.to_string(),
+                        }),
+                        name: table_name.to_string(),
+                    }),
+                })),
+            })),
+            fields,
         }))),
     }
 }

@@ -1,6 +1,6 @@
 use crate::ast::{
-    CountResult, Cursor, Datum, DeleteResult, Expression, FieldRef, FilterResult, LimitResult,
-    OrderByField, OrderByResult, SkipResult, UpdateResult, query_result,
+    CountResult, Cursor, Datum, DeleteResult, Document, Expression, FieldRef, FilterResult,
+    LimitResult, OrderByField, OrderByResult, PluckResult, SkipResult, UpdateResult, query_result,
 };
 use crate::evaluator::error::{EvalError, EvalStats};
 use crate::evaluator::expression::ExpressionEvaluator;
@@ -203,6 +203,49 @@ impl QueryProcessor {
         Ok(query_result::Result::Count(CountResult { count }))
     }
 
+    pub async fn pluck_documents_streaming(
+        &self,
+        source_result: query_result::Result,
+        cursor: Option<Cursor>,
+        field_refs: &[FieldRef],
+        stats: &mut EvalStats,
+    ) -> Result<query_result::Result, EvalError> {
+        let documents = self.extract_documents_from_result(source_result)?;
+
+        let plucked_docs: Vec<Datum> = documents
+            .into_iter()
+            .map(|doc| {
+                field_refs
+                    .iter()
+                    .map(|field_ref| {
+                        (
+                            field_ref.to_string(),
+                            extract_field_from_ref(&doc, field_ref),
+                        )
+                    })
+                    .collect::<Document>()
+                    .into()
+            })
+            .collect();
+
+        let doc_count = plucked_docs.len();
+        stats.record_rows_processed(doc_count);
+        stats.record_rows_returned(doc_count);
+
+        let last_key = plucked_docs
+            .last()
+            .map(|doc| self.extract_document_key(doc))
+            .transpose()
+            .unwrap_or(None);
+
+        let next_cursor = Cursor::from_previous(cursor, last_key, &plucked_docs);
+
+        Ok(query_result::Result::Pluck(PluckResult {
+            documents: plucked_docs,
+            cursor: next_cursor,
+        }))
+    }
+
     /// Update documents based on a patch
     pub async fn update_documents(
         &self,
@@ -331,7 +374,8 @@ impl QueryProcessor {
             | PlanNode::OrderBy { source, .. }
             | PlanNode::Limit { source, .. }
             | PlanNode::Skip { source, .. }
-            | PlanNode::Count { source, .. } => self.extract_table_context(source),
+            | PlanNode::Count { source, .. }
+            | PlanNode::Pluck { source, .. } => self.extract_table_context(source),
             _ => Err(EvalError::InvalidExpression),
         }
     }

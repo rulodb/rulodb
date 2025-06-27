@@ -884,3 +884,158 @@ fn test_table_operations() {
         _ => panic!("Expected ListTables node"),
     }
 }
+
+#[test]
+fn test_build_plan_pluck() {
+    let mut planner = Planner::new();
+
+    // Create a pluck query
+    let query = proto::Query {
+        options: None,
+        cursor: None,
+        kind: Some(proto::query::Kind::Pluck(Box::new(proto::Pluck {
+            source: Some(Box::new(proto::Query {
+                options: None,
+                cursor: None,
+                kind: Some(proto::query::Kind::Table(proto::Table {
+                    table: Some(proto::TableRef {
+                        database: Some(proto::DatabaseRef {
+                            name: "test_db".to_string(),
+                        }),
+                        name: "test_table".to_string(),
+                    }),
+                })),
+            })),
+            fields: vec![
+                proto::FieldRef {
+                    path: vec!["name".to_string()],
+                    separator: ".".to_string(),
+                },
+                proto::FieldRef {
+                    path: vec!["age".to_string()],
+                    separator: ".".to_string(),
+                },
+            ],
+        }))),
+    };
+
+    let plan = planner.plan(&query).unwrap();
+
+    match plan {
+        PlanNode::Pluck {
+            source,
+            fields,
+            cost,
+        } => {
+            // Check that the source is a table scan
+            match source.as_ref() {
+                PlanNode::TableScan { table_ref, .. } => {
+                    assert_eq!(table_ref.database.as_ref().unwrap().name, "test_db");
+                    assert_eq!(table_ref.name, "test_table");
+                }
+                _ => panic!("Expected TableScan as source"),
+            }
+
+            // Check fields
+            assert_eq!(fields.len(), 2);
+            assert_eq!(fields[0].path, vec!["name".to_string()]);
+            assert_eq!(fields[1].path, vec!["age".to_string()]);
+
+            // Check cost is inherited from source
+            assert_eq!(cost, source.cost());
+        }
+        _ => panic!("Expected Pluck node"),
+    }
+}
+
+#[test]
+fn test_pluck_missing_source() {
+    let mut planner = Planner::new();
+
+    // Create a pluck query without source
+    let query = proto::Query {
+        options: None,
+        cursor: None,
+        kind: Some(proto::query::Kind::Pluck(Box::new(proto::Pluck {
+            source: None,
+            fields: vec![proto::FieldRef {
+                path: vec!["name".to_string()],
+                separator: ".".to_string(),
+            }],
+        }))),
+    };
+
+    let result = planner.plan(&query);
+    assert!(result.is_err());
+
+    if let Err(PlanError::InvalidExpression(msg)) = result {
+        assert_eq!(msg, "Pluck missing source");
+    } else {
+        panic!("Expected InvalidExpression error");
+    }
+}
+
+#[test]
+fn test_pluck_estimated_rows() {
+    let table_ref = create_test_table_ref();
+    let source = PlanNode::TableScan {
+        table_ref,
+        cursor: None,
+        filter: None,
+        cost: 1.0,
+        estimated_rows: 100.0,
+    };
+
+    let pluck_node = PlanNode::Pluck {
+        source: Box::new(source),
+        fields: vec![proto::FieldRef {
+            path: vec!["name".to_string()],
+            separator: ".".to_string(),
+        }],
+        cost: 1.0,
+    };
+
+    // Pluck should inherit estimated rows from source
+    assert_eq!(pluck_node.estimated_rows(), 100.0);
+}
+
+#[test]
+fn test_pluck_node_partial_eq() {
+    let table_ref = create_test_table_ref();
+    let source = PlanNode::TableScan {
+        table_ref: table_ref.clone(),
+        cursor: None,
+        filter: None,
+        cost: 1.0,
+        estimated_rows: 100.0,
+    };
+
+    let fields = vec![proto::FieldRef {
+        path: vec!["name".to_string()],
+        separator: ".".to_string(),
+    }];
+
+    let pluck1 = PlanNode::Pluck {
+        source: Box::new(source.clone()),
+        fields: fields.clone(),
+        cost: 1.0,
+    };
+
+    let pluck2 = PlanNode::Pluck {
+        source: Box::new(source.clone()),
+        fields: fields.clone(),
+        cost: 2.0, // Different cost should still be equal
+    };
+
+    let pluck3 = PlanNode::Pluck {
+        source: Box::new(source),
+        fields: vec![proto::FieldRef {
+            path: vec!["age".to_string()],
+            separator: ".".to_string(),
+        }],
+        cost: 1.0,
+    };
+
+    assert_eq!(pluck1, pluck2); // Same source and fields
+    assert_ne!(pluck1, pluck3); // Different fields
+}
