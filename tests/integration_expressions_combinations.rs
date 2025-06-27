@@ -10,8 +10,7 @@ async fn test_expression_complex_nested_combinations() {
     let table_name = &generate_unique_name("test_table_complex_nested");
 
     println!(
-        "Testing complex nested expression combinations, ID: {}, database: {}, table: {}",
-        query_id, database_name, table_name
+        "Testing complex nested expression combinations, ID: {query_id}, database: {database_name}, table: {table_name}"
     );
 
     let mut stream = connect_to_server()
@@ -20,14 +19,14 @@ async fn test_expression_complex_nested_combinations() {
 
     // Setup: Create database and table
     let db_create_query = create_database_create_query(database_name);
-    let db_create_envelope = create_envelope(&format!("{}-db-create", query_id), &db_create_query);
+    let db_create_envelope = create_envelope(&format!("{query_id}-db-create"), &db_create_query);
     send_envelope_to_server(&mut stream, &db_create_envelope)
         .await
         .expect("Failed to create database");
 
     let table_create_query = create_table_create_query(database_name, table_name);
     let table_create_envelope =
-        create_envelope(&format!("{}-table-create", query_id), &table_create_query);
+        create_envelope(&format!("{query_id}-table-create"), &table_create_query);
     send_envelope_to_server(&mut stream, &table_create_envelope)
         .await
         .expect("Failed to create table");
@@ -69,7 +68,7 @@ async fn test_expression_complex_nested_combinations() {
     ];
 
     let insert_query = create_insert_query(database_name, table_name, documents);
-    let insert_envelope = create_envelope(&format!("{}-insert", query_id), &insert_query);
+    let insert_envelope = create_envelope(&format!("{query_id}-insert"), &insert_query);
     send_envelope_to_server(&mut stream, &insert_envelope)
         .await
         .expect("Failed to insert documents");
@@ -160,7 +159,7 @@ async fn test_expression_complex_nested_combinations() {
 
     let filter_query = create_filter_query(database_name, table_name, final_expr);
 
-    let filter_envelope = create_envelope(&format!("{}-filter", query_id), &filter_query);
+    let filter_envelope = create_envelope(&format!("{query_id}-filter"), &filter_query);
     let filter_response = send_envelope_to_server(&mut stream, &filter_envelope)
         .await
         .expect("Failed to send complex filter envelope");
@@ -187,7 +186,7 @@ async fn test_expression_complex_nested_combinations() {
 
     // Cleanup
     let db_drop_query = create_database_drop_query(database_name);
-    let db_drop_envelope = create_envelope(&format!("{}-db-drop", query_id), &db_drop_query);
+    let db_drop_envelope = create_envelope(&format!("{query_id}-db-drop"), &db_drop_query);
     send_envelope_to_server(&mut stream, &db_drop_envelope)
         .await
         .expect("Failed to drop database");
@@ -202,8 +201,7 @@ async fn test_expression_edge_cases_null_values() {
     let table_name = &generate_unique_name("test_table_edge_null");
 
     println!(
-        "Testing expression edge cases with null values, ID: {}, database: {}, table: {}",
-        query_id, database_name, table_name
+        "Testing expression edge cases with null values, ID: {query_id}, database: {database_name}, table: {table_name}"
     );
 
     let mut stream = connect_to_server()
@@ -212,14 +210,14 @@ async fn test_expression_edge_cases_null_values() {
 
     // Setup
     let db_create_query = create_database_create_query(database_name);
-    let db_create_envelope = create_envelope(&format!("{}-db-create", query_id), &db_create_query);
+    let db_create_envelope = create_envelope(&format!("{query_id}-db-create"), &db_create_query);
     send_envelope_to_server(&mut stream, &db_create_envelope)
         .await
         .expect("Failed to create database");
 
     let table_create_query = create_table_create_query(database_name, table_name);
     let table_create_envelope =
-        create_envelope(&format!("{}-table-create", query_id), &table_create_query);
+        create_envelope(&format!("{query_id}-table-create"), &table_create_query);
     send_envelope_to_server(&mut stream, &table_create_envelope)
         .await
         .expect("Failed to create table");
@@ -247,7 +245,7 @@ async fn test_expression_edge_cases_null_values() {
     ];
 
     let insert_query = create_insert_query(database_name, table_name, documents);
-    let insert_envelope = create_envelope(&format!("{}-insert", query_id), &insert_query);
+    let insert_envelope = create_envelope(&format!("{query_id}-insert"), &insert_query);
     send_envelope_to_server(&mut stream, &insert_envelope)
         .await
         .expect("Failed to insert documents");
@@ -260,7 +258,7 @@ async fn test_expression_edge_cases_null_values() {
     );
     let filter_query = create_filter_query(database_name, table_name, empty_email_expr);
 
-    let filter_envelope = create_envelope(&format!("{}-filter-empty", query_id), &filter_query);
+    let filter_envelope = create_envelope(&format!("{query_id}-filter-empty"), &filter_query);
     let filter_response = send_envelope_to_server(&mut stream, &filter_envelope)
         .await
         .expect("Failed to send empty string filter");
@@ -280,7 +278,7 @@ async fn test_expression_edge_cases_null_values() {
     );
     let filter_query = create_filter_query(database_name, table_name, zero_score_expr);
 
-    let filter_envelope = create_envelope(&format!("{}-filter-zero", query_id), &filter_query);
+    let filter_envelope = create_envelope(&format!("{query_id}-filter-zero"), &filter_query);
     let filter_response = send_envelope_to_server(&mut stream, &filter_envelope)
         .await
         .expect("Failed to send zero value filter");
@@ -300,7 +298,7 @@ async fn test_expression_edge_cases_null_values() {
     );
     let filter_query = create_filter_query(database_name, table_name, negative_score_expr);
 
-    let filter_envelope = create_envelope(&format!("{}-filter-negative", query_id), &filter_query);
+    let filter_envelope = create_envelope(&format!("{query_id}-filter-negative"), &filter_query);
     let filter_response = send_envelope_to_server(&mut stream, &filter_envelope)
         .await
         .expect("Failed to send negative value filter");
@@ -318,7 +316,7 @@ async fn test_expression_edge_cases_null_values() {
 
     // Cleanup
     let db_drop_query = create_database_drop_query(database_name);
-    let db_drop_envelope = create_envelope(&format!("{}-db-drop", query_id), &db_drop_query);
+    let db_drop_envelope = create_envelope(&format!("{query_id}-db-drop"), &db_drop_query);
     send_envelope_to_server(&mut stream, &db_drop_envelope)
         .await
         .expect("Failed to drop database");
@@ -333,8 +331,7 @@ async fn test_expression_edge_cases_type_mismatches() {
     let table_name = &generate_unique_name("test_table_edge_types");
 
     println!(
-        "Testing expression edge cases with type mismatches, ID: {}, database: {}, table: {}",
-        query_id, database_name, table_name
+        "Testing expression edge cases with type mismatches, ID: {query_id}, database: {database_name}, table: {table_name}"
     );
 
     let mut stream = connect_to_server()
@@ -343,14 +340,14 @@ async fn test_expression_edge_cases_type_mismatches() {
 
     // Setup
     let db_create_query = create_database_create_query(database_name);
-    let db_create_envelope = create_envelope(&format!("{}-db-create", query_id), &db_create_query);
+    let db_create_envelope = create_envelope(&format!("{query_id}-db-create"), &db_create_query);
     send_envelope_to_server(&mut stream, &db_create_envelope)
         .await
         .expect("Failed to create database");
 
     let table_create_query = create_table_create_query(database_name, table_name);
     let table_create_envelope =
-        create_envelope(&format!("{}-table-create", query_id), &table_create_query);
+        create_envelope(&format!("{query_id}-table-create"), &table_create_query);
     send_envelope_to_server(&mut stream, &table_create_envelope)
         .await
         .expect("Failed to create table");
@@ -372,7 +369,7 @@ async fn test_expression_edge_cases_type_mismatches() {
     ];
 
     let insert_query = create_insert_query(database_name, table_name, documents);
-    let insert_envelope = create_envelope(&format!("{}-insert", query_id), &insert_query);
+    let insert_envelope = create_envelope(&format!("{query_id}-insert"), &insert_query);
     send_envelope_to_server(&mut stream, &insert_envelope)
         .await
         .expect("Failed to insert documents");
@@ -385,13 +382,13 @@ async fn test_expression_edge_cases_type_mismatches() {
     );
     let filter_query = create_filter_query(database_name, table_name, string_number_expr);
 
-    let filter_envelope = create_envelope(&format!("{}-filter-string", query_id), &filter_query);
+    let filter_envelope = create_envelope(&format!("{query_id}-filter-string"), &filter_query);
     let filter_response = send_envelope_to_server(&mut stream, &filter_envelope)
         .await
         .expect("Failed to send string comparison filter");
 
     // Validate the response structure
-    validate_response_envelope(&filter_response, &format!("{}-filter-string", query_id))
+    validate_response_envelope(&filter_response, &format!("{query_id}-filter-string"))
         .expect("String comparison filter response validation failed");
     println!("✓ String vs number comparison test executed");
 
@@ -403,13 +400,13 @@ async fn test_expression_edge_cases_type_mismatches() {
     );
     let filter_query = create_filter_query(database_name, table_name, bool_string_expr);
 
-    let filter_envelope = create_envelope(&format!("{}-filter-bool", query_id), &filter_query);
+    let filter_envelope = create_envelope(&format!("{query_id}-filter-bool"), &filter_query);
     let filter_response = send_envelope_to_server(&mut stream, &filter_envelope)
         .await
         .expect("Failed to send boolean comparison filter");
 
     // Validate the response structure
-    validate_response_envelope(&filter_response, &format!("{}-filter-bool", query_id))
+    validate_response_envelope(&filter_response, &format!("{query_id}-filter-bool"))
         .expect("Boolean comparison filter response validation failed");
     println!("✓ Boolean vs string comparison test executed");
 
@@ -421,7 +418,7 @@ async fn test_expression_edge_cases_type_mismatches() {
     );
     let filter_query = create_filter_query(database_name, table_name, numeric_expr);
 
-    let filter_envelope = create_envelope(&format!("{}-filter-numeric", query_id), &filter_query);
+    let filter_envelope = create_envelope(&format!("{query_id}-filter-numeric"), &filter_query);
     let filter_response = send_envelope_to_server(&mut stream, &filter_envelope)
         .await
         .expect("Failed to send numeric comparison filter");
@@ -436,7 +433,7 @@ async fn test_expression_edge_cases_type_mismatches() {
 
     // Cleanup
     let db_drop_query = create_database_drop_query(database_name);
-    let db_drop_envelope = create_envelope(&format!("{}-db-drop", query_id), &db_drop_query);
+    let db_drop_envelope = create_envelope(&format!("{query_id}-db-drop"), &db_drop_query);
     send_envelope_to_server(&mut stream, &db_drop_envelope)
         .await
         .expect("Failed to drop database");
@@ -451,8 +448,7 @@ async fn test_expression_performance_deep_nesting() {
     let table_name = &generate_unique_name("test_table_perf_deep");
 
     println!(
-        "Testing expression performance with deep nesting, ID: {}, database: {}, table: {}",
-        query_id, database_name, table_name
+        "Testing expression performance with deep nesting, ID: {query_id}, database: {database_name}, table: {table_name}"
     );
 
     let mut stream = connect_to_server()
@@ -461,14 +457,14 @@ async fn test_expression_performance_deep_nesting() {
 
     // Setup
     let db_create_query = create_database_create_query(database_name);
-    let db_create_envelope = create_envelope(&format!("{}-db-create", query_id), &db_create_query);
+    let db_create_envelope = create_envelope(&format!("{query_id}-db-create"), &db_create_query);
     send_envelope_to_server(&mut stream, &db_create_envelope)
         .await
         .expect("Failed to create database");
 
     let table_create_query = create_table_create_query(database_name, table_name);
     let table_create_envelope =
-        create_envelope(&format!("{}-table-create", query_id), &table_create_query);
+        create_envelope(&format!("{query_id}-table-create"), &table_create_query);
     send_envelope_to_server(&mut stream, &table_create_envelope)
         .await
         .expect("Failed to create table");
@@ -490,7 +486,7 @@ async fn test_expression_performance_deep_nesting() {
     ];
 
     let insert_query = create_insert_query(database_name, table_name, documents);
-    let insert_envelope = create_envelope(&format!("{}-insert", query_id), &insert_query);
+    let insert_envelope = create_envelope(&format!("{query_id}-insert"), &insert_query);
     send_envelope_to_server(&mut stream, &insert_envelope)
         .await
         .expect("Failed to insert documents");
@@ -534,7 +530,7 @@ async fn test_expression_performance_deep_nesting() {
     let filter_query = create_filter_query(database_name, table_name, final_expr);
 
     let start_time = std::time::Instant::now();
-    let filter_envelope = create_envelope(&format!("{}-filter", query_id), &filter_query);
+    let filter_envelope = create_envelope(&format!("{query_id}-filter"), &filter_query);
     let filter_response = send_envelope_to_server(&mut stream, &filter_envelope)
         .await
         .expect("Failed to send deeply nested filter");
@@ -550,7 +546,7 @@ async fn test_expression_performance_deep_nesting() {
             "Should find 2 items matching deep expression"
         );
 
-        println!("✓ Deep nested expression executed in {:?}", duration);
+        println!("✓ Deep nested expression executed in {duration:?}");
 
         // Performance check - should complete within reasonable time
         assert!(
@@ -562,7 +558,7 @@ async fn test_expression_performance_deep_nesting() {
 
     // Cleanup
     let db_drop_query = create_database_drop_query(database_name);
-    let db_drop_envelope = create_envelope(&format!("{}-db-drop", query_id), &db_drop_query);
+    let db_drop_envelope = create_envelope(&format!("{query_id}-db-drop"), &db_drop_query);
     send_envelope_to_server(&mut stream, &db_drop_envelope)
         .await
         .expect("Failed to drop database");
@@ -577,8 +573,7 @@ async fn test_expression_unicode_and_special_characters() {
     let table_name = &generate_unique_name("test_table_unicode");
 
     println!(
-        "Testing expressions with Unicode and special characters, ID: {}, database: {}, table: {}",
-        query_id, database_name, table_name
+        "Testing expressions with Unicode and special characters, ID: {query_id}, database: {database_name}, table: {table_name}"
     );
 
     let mut stream = connect_to_server()
@@ -587,14 +582,14 @@ async fn test_expression_unicode_and_special_characters() {
 
     // Setup
     let db_create_query = create_database_create_query(database_name);
-    let db_create_envelope = create_envelope(&format!("{}-db-create", query_id), &db_create_query);
+    let db_create_envelope = create_envelope(&format!("{query_id}-db-create"), &db_create_query);
     send_envelope_to_server(&mut stream, &db_create_envelope)
         .await
         .expect("Failed to create database");
 
     let table_create_query = create_table_create_query(database_name, table_name);
     let table_create_envelope =
-        create_envelope(&format!("{}-table-create", query_id), &table_create_query);
+        create_envelope(&format!("{query_id}-table-create"), &table_create_query);
     send_envelope_to_server(&mut stream, &table_create_envelope)
         .await
         .expect("Failed to create table");
@@ -631,7 +626,7 @@ async fn test_expression_unicode_and_special_characters() {
     ];
 
     let insert_query = create_insert_query(database_name, table_name, documents);
-    let insert_envelope = create_envelope(&format!("{}-insert", query_id), &insert_query);
+    let insert_envelope = create_envelope(&format!("{query_id}-insert"), &insert_query);
     send_envelope_to_server(&mut stream, &insert_envelope)
         .await
         .expect("Failed to insert Unicode documents");
@@ -644,7 +639,7 @@ async fn test_expression_unicode_and_special_characters() {
     );
     let filter_query = create_filter_query(database_name, table_name, unicode_expr);
 
-    let filter_envelope = create_envelope(&format!("{}-filter-unicode", query_id), &filter_query);
+    let filter_envelope = create_envelope(&format!("{query_id}-filter-unicode"), &filter_query);
     let filter_response = send_envelope_to_server(&mut stream, &filter_envelope)
         .await
         .expect("Failed to send Unicode filter");
@@ -666,7 +661,7 @@ async fn test_expression_unicode_and_special_characters() {
     };
     let filter_query = create_filter_query(database_name, table_name, unicode_regex);
 
-    let filter_envelope = create_envelope(&format!("{}-filter-regex", query_id), &filter_query);
+    let filter_envelope = create_envelope(&format!("{query_id}-filter-regex"), &filter_query);
     let filter_response = send_envelope_to_server(&mut stream, &filter_envelope)
         .await
         .expect("Failed to send Unicode regex filter");
@@ -688,7 +683,7 @@ async fn test_expression_unicode_and_special_characters() {
     };
     let filter_query = create_filter_query(database_name, table_name, special_char_regex);
 
-    let filter_envelope = create_envelope(&format!("{}-filter-special", query_id), &filter_query);
+    let filter_envelope = create_envelope(&format!("{query_id}-filter-special"), &filter_query);
     let filter_response = send_envelope_to_server(&mut stream, &filter_envelope)
         .await
         .expect("Failed to send special character filter");
@@ -712,8 +707,7 @@ async fn test_expression_unicode_and_special_characters() {
     );
     let filter_query = create_filter_query(database_name, table_name, apostrophe_expr);
 
-    let filter_envelope =
-        create_envelope(&format!("{}-filter-apostrophe", query_id), &filter_query);
+    let filter_envelope = create_envelope(&format!("{query_id}-filter-apostrophe"), &filter_query);
     let filter_response = send_envelope_to_server(&mut stream, &filter_envelope)
         .await
         .expect("Failed to send apostrophe filter");
@@ -727,7 +721,7 @@ async fn test_expression_unicode_and_special_characters() {
 
     // Cleanup
     let db_drop_query = create_database_drop_query(database_name);
-    let db_drop_envelope = create_envelope(&format!("{}-db-drop", query_id), &db_drop_query);
+    let db_drop_envelope = create_envelope(&format!("{query_id}-db-drop"), &db_drop_query);
     send_envelope_to_server(&mut stream, &db_drop_envelope)
         .await
         .expect("Failed to drop database");

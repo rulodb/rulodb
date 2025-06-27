@@ -1391,22 +1391,18 @@ mod tests {
             },
         );
 
-        println!("Original document: {:?}", doc);
-
         // Test the exact same serialization used in storage
         let serialized = bincode::serde::encode_to_vec(&doc, bincode::config::standard())
             .expect("Failed to serialize document");
-        println!("Serialized: {} bytes", serialized.len());
 
         // Test the exact same deserialization used in storage
         let result = parse_doc(&serialized);
         match result {
             Ok(deserialized) => {
-                println!("Successfully deserialized: {:?}", deserialized);
                 assert_eq!(doc, deserialized);
             }
             Err(e) => {
-                panic!("Failed to deserialize: {}", e);
+                panic!("Failed to deserialize: {e}");
             }
         }
     }
@@ -1443,35 +1439,26 @@ mod tests {
             },
         );
 
-        println!("Original document (BTreeMap): {:?}", doc);
-
         // Convert to Datum using the same conversion as in evaluator
         let datum: Datum = doc.into();
-        println!("Converted to Datum: {:?}", datum);
 
         // Test serialization of the converted Datum (this might be where it fails)
         match bincode::serde::encode_to_vec(&datum, bincode::config::standard()) {
             Ok(serialized) => {
-                println!(
-                    "✓ Datum serialization successful: {} bytes",
-                    serialized.len()
-                );
-
                 // Test deserialization
                 let decode_result: std::result::Result<(Datum, usize), _> =
                     bincode::serde::decode_from_slice(&serialized, bincode::config::standard());
                 match decode_result {
                     Ok((deserialized, _)) => {
-                        println!("✓ Datum deserialization successful");
                         assert_eq!(datum, deserialized);
                     }
                     Err(e) => {
-                        panic!("❌ Datum deserialization failed: {}", e);
+                        panic!("❌ Datum deserialization failed: {e}");
                     }
                 }
             }
             Err(e) => {
-                panic!("❌ Datum serialization failed: {}", e);
+                panic!("❌ Datum serialization failed: {e}");
             }
         }
     }
@@ -1479,8 +1466,6 @@ mod tests {
     #[tokio::test]
     async fn test_storage_layer_roundtrip() {
         use tempfile::TempDir;
-
-        println!("=== Testing Direct Storage Layer Operations ===");
 
         // Create temporary storage
         let temp_dir = TempDir::new().expect("Failed to create temp dir");
@@ -1510,46 +1495,31 @@ mod tests {
             },
         );
 
-        println!("Original document: {:?}", original_doc);
-
         // Step 1: Create database
-        println!("Step 1: Creating database...");
         storage
             .create_database(db_name)
             .await
             .expect("Failed to create database");
-        println!("✓ Database created");
 
         // Step 2: Create table
-        println!("Step 2: Creating table...");
         storage
             .create_table(db_name, table_name)
             .await
             .expect("Failed to create table");
-        println!("✓ Table created");
 
         // Step 3: Put document
-        println!("Step 3: Storing document...");
         storage
             .put(db_name, table_name, key, &original_doc)
             .await
             .expect("Failed to put document");
-        println!("✓ Document stored");
 
         // Step 4: Get document (this is where the error should occur if it's a storage issue)
-        println!("Step 4: Retrieving document...");
         match storage.get(db_name, table_name, key).await {
             Ok(Some(retrieved_doc)) => {
-                println!("✓ Document retrieved successfully");
-                println!("Retrieved document: {:?}", retrieved_doc);
-
                 // Verify they match
-                if original_doc == retrieved_doc {
-                    println!("✓ Documents match perfectly");
-                } else {
+                if original_doc != retrieved_doc {
                     panic!(
-                        "❌ Documents don't match!\nOriginal: {:?}\nRetrieved: {:?}",
-                        original_doc, retrieved_doc
+                        "❌ Documents don't match!\nOriginal: {original_doc:?}\nRetrieved: {retrieved_doc:?}"
                     );
                 }
             }
@@ -1557,174 +1527,9 @@ mod tests {
                 panic!("❌ Document not found");
             }
             Err(e) => {
-                panic!("❌ Failed to retrieve document: {}", e);
+                panic!("❌ Failed to retrieve document: {e}");
             }
         }
-
-        println!("=== Storage layer test completed successfully ===");
-    }
-
-    #[tokio::test]
-    async fn test_raw_storage_data_verification() {
-        use tempfile::TempDir;
-
-        println!("=== Testing Raw Storage Data ===");
-
-        // Create temporary storage
-        let temp_dir = TempDir::new().expect("Failed to create temp dir");
-        let config = Config {
-            data_dir: temp_dir.path().to_string_lossy().to_string(),
-            ..Default::default()
-        };
-        let storage = DefaultStorage::open(&config).expect("Failed to create storage");
-
-        // Test data
-        let db_name = "test_db";
-        let table_name = "test_table";
-        let key = "test_key";
-
-        // Create a simple document
-        let mut original_doc = Document::new();
-        original_doc.insert(
-            "id".to_string(),
-            Datum {
-                value: Some(datum::Value::String("test1".to_string())),
-            },
-        );
-        original_doc.insert(
-            "value".to_string(),
-            Datum {
-                value: Some(datum::Value::String("hello".to_string())),
-            },
-        );
-
-        println!("Original document: {:?}", original_doc);
-
-        // Setup storage
-        storage
-            .create_database(db_name)
-            .await
-            .expect("Failed to create database");
-        storage
-            .create_table(db_name, table_name)
-            .await
-            .expect("Failed to create table");
-
-        // Store the document
-        println!("Storing document...");
-        storage
-            .put(db_name, table_name, key, &original_doc)
-            .await
-            .expect("Failed to put document");
-        println!("✓ Document stored");
-
-        // Now let's examine what was actually stored by accessing RocksDB directly
-        println!("Examining raw stored data...");
-        let table_full_name = format_table_name(db_name, table_name);
-
-        // Access the raw database
-        let inner_db = &storage.inner;
-        let cf = get_cf_cache()
-            .get(&table_full_name, inner_db)
-            .expect("Column family not found");
-
-        match inner_db.get_cf_opt(&cf, key, &DefaultStorage::create_read_opts()) {
-            Ok(Some(raw_bytes)) => {
-                println!("✓ Raw data found: {} bytes", raw_bytes.len());
-                println!(
-                    "Raw bytes (first 100): {:?}",
-                    &raw_bytes[..raw_bytes.len().min(100)]
-                );
-
-                // Try to deserialize the raw bytes manually
-                println!("Attempting manual deserialization...");
-                let decode_result: std::result::Result<(Document, usize), _> =
-                    bincode::serde::decode_from_slice(&raw_bytes, bincode::config::standard());
-                match decode_result {
-                    Ok((deserialized, _)) => {
-                        println!("✓ Manual deserialization successful");
-                        println!("Manually deserialized: {:?}", deserialized);
-
-                        if original_doc == deserialized {
-                            println!("✓ Manual deserialization matches original");
-                        } else {
-                            println!("❌ Manual deserialization differs from original");
-                        }
-                    }
-                    Err(e) => {
-                        println!("❌ Manual deserialization failed: {}", e);
-                        println!("Error details: {:?}", e);
-
-                        // Try to understand the error better
-                        println!("Attempting to diagnose the raw data...");
-
-                        // Try deserializing as different types to understand the structure
-                        let btreemap_result: std::result::Result<
-                            (std::collections::BTreeMap<String, String>, usize),
-                            _,
-                        > = bincode::serde::decode_from_slice(
-                            &raw_bytes,
-                            bincode::config::standard(),
-                        );
-                        if let Ok((as_btreemap, _)) = btreemap_result {
-                            println!(
-                                "Could deserialize as BTreeMap<String, String>: {:?}",
-                                as_btreemap
-                            );
-                        }
-
-                        let hashmap_result: std::result::Result<
-                            (HashMap<String, String>, usize),
-                            _,
-                        > = bincode::serde::decode_from_slice(
-                            &raw_bytes,
-                            bincode::config::standard(),
-                        );
-                        if let Ok((as_hashmap, _)) = hashmap_result {
-                            println!(
-                                "Could deserialize as HashMap<String, String>: {:?}",
-                                as_hashmap
-                            );
-                        }
-                    }
-                }
-
-                // Also try to use the storage's parse_doc function
-                println!("Testing storage's parse_doc function...");
-                match parse_doc(&raw_bytes) {
-                    Ok(parsed) => {
-                        println!("✓ parse_doc successful: {:?}", parsed);
-                    }
-                    Err(e) => {
-                        println!("❌ parse_doc failed: {}", e);
-                        println!("This confirms the issue is in deserialization");
-                    }
-                }
-            }
-            Ok(None) => {
-                panic!("❌ No data found for key '{}'", key);
-            }
-            Err(e) => {
-                panic!("❌ Failed to read raw data: {}", e);
-            }
-        }
-
-        // Compare with what the normal storage API returns
-        println!("Testing normal storage API...");
-        match storage.get(db_name, table_name, key).await {
-            Ok(Some(retrieved)) => {
-                println!("✓ Normal storage API successful: {:?}", retrieved);
-            }
-            Ok(None) => {
-                println!("❌ Normal storage API returned None");
-            }
-            Err(e) => {
-                println!("❌ Normal storage API failed: {}", e);
-                println!("This is where our actual error occurs!");
-            }
-        }
-
-        println!("=== Raw storage data test completed ===");
     }
 
     #[tokio::test]
@@ -1732,8 +1537,6 @@ mod tests {
         use std::sync::Arc;
         use tempfile::TempDir;
         use tokio::task;
-
-        println!("=== Testing Server-like Async Execution Pattern ===");
 
         // Create temporary storage exactly like the server does
         let temp_dir = TempDir::new().expect("Failed to create temp dir");
@@ -1763,10 +1566,7 @@ mod tests {
             },
         );
 
-        println!("Original document: {:?}", original_doc);
-
         // Step 1: Setup storage (like server initialization)
-        println!("Step 1: Setting up storage...");
         let storage_clone = storage.clone();
         task::spawn(async move {
             storage_clone
@@ -1787,13 +1587,10 @@ mod tests {
         .await
         .expect("Table creation task failed");
 
-        println!("✓ Storage setup completed");
-
         // Step 2: Insert operation (like server insert handling)
-        println!("Step 2: Async insert operation...");
         let storage_clone = storage.clone();
         let doc_clone = original_doc.clone();
-        let insert_result = task::spawn(async move {
+        let _ = task::spawn(async move {
             storage_clone
                 .put(db_name, table_name, key, &doc_clone)
                 .await
@@ -1801,13 +1598,7 @@ mod tests {
         .await
         .expect("Insert task panicked");
 
-        match insert_result {
-            Ok(()) => println!("✓ Async insert successful"),
-            Err(e) => panic!("❌ Async insert failed: {}", e),
-        }
-
         // Step 3: Get operation (like server get handling) - this should reproduce the error
-        println!("Step 3: Async get operation...");
         let storage_clone = storage.clone();
         let get_result =
             task::spawn(async move { storage_clone.get(db_name, table_name, key).await })
@@ -1815,31 +1606,23 @@ mod tests {
                 .expect("Get task panicked");
 
         match get_result {
-            Ok(Some(retrieved)) => {
-                println!("✓ Async get successful: {:?}", retrieved);
-
-                // Test the same conversion path as the evaluator
-                println!("Step 4: Testing evaluator-style conversion...");
-                let datum_result: Datum = retrieved.into();
-                println!("✓ Document to Datum conversion: {:?}", datum_result);
-            }
+            Ok(Some(_)) => {}
             Ok(None) => {
                 panic!("❌ Async get returned None");
             }
             Err(e) => {
-                println!("❌ Async get failed: {}", e);
-                println!("Error type: {:?}", e);
+                println!("❌ Async get failed: {e}");
+                println!("Error type: {e:?}");
                 panic!("This should reproduce the server error!");
             }
         }
 
         // Step 5: Test concurrent operations (like real server load)
-        println!("Step 5: Testing concurrent operations...");
         let mut tasks = vec![];
 
         for i in 0..5 {
             let storage_clone = storage.clone();
-            let test_key = format!("concurrent_key_{}", i);
+            let test_key = format!("concurrent_key_{i}");
             let test_doc = original_doc.clone();
 
             // Spawn concurrent insert
@@ -1854,8 +1637,8 @@ mod tests {
         // Wait for all inserts
         for (i, task) in tasks.into_iter().enumerate() {
             match task.await.expect("Concurrent insert task panicked") {
-                Ok(()) => println!("✓ Concurrent insert {} successful", i),
-                Err(e) => panic!("❌ Concurrent insert {} failed: {}", i, e),
+                Ok(()) => {}
+                Err(e) => panic!("❌ Concurrent insert {i} failed: {e}"),
             }
         }
 
@@ -1863,7 +1646,7 @@ mod tests {
         let mut get_tasks = vec![];
         for i in 0..5 {
             let storage_clone = storage.clone();
-            let test_key = format!("concurrent_key_{}", i);
+            let test_key = format!("concurrent_key_{i}");
 
             let get_task =
                 task::spawn(async move { storage_clone.get(db_name, table_name, &test_key).await });
@@ -1873,16 +1656,14 @@ mod tests {
         // Check concurrent get results
         for (i, task) in get_tasks.into_iter() {
             match task.await.expect("Concurrent get task panicked") {
-                Ok(Some(_)) => println!("✓ Concurrent get {} successful", i),
-                Ok(None) => panic!("❌ Concurrent get {} returned None", i),
+                Ok(Some(_)) => {}
+                Ok(None) => panic!("❌ Concurrent get {i} returned None"),
                 Err(e) => {
-                    println!("❌ Concurrent get {} failed: {}", i, e);
-                    panic!("Concurrent operation error: {}", e);
+                    println!("❌ Concurrent get {i} failed: {e}");
+                    panic!("Concurrent operation error: {e}");
                 }
             }
         }
-
-        println!("=== Server-like async execution test completed successfully ===");
     }
 
     #[test]
@@ -2050,7 +1831,7 @@ mod tests {
     fn test_database_config_default() {
         let config = DatabaseConfig::default();
         // DatabaseConfig is empty for now, but this tests the Default implementation
-        let _ = format!("{:?}", config); // Just ensure it's debuggable
+        let _ = format!("{config:?}"); // Just ensure it's debuggable
     }
 
     #[tokio::test]
@@ -2460,12 +2241,12 @@ mod tests {
             doc.insert(
                 "value".to_string(),
                 Datum {
-                    value: Some(datum::Value::String(format!("value_{}", i))),
+                    value: Some(datum::Value::String(format!("value_{i}"))),
                 },
             );
 
             storage
-                .put("test_db", "test_table", &format!("key_{}", i), &doc)
+                .put("test_db", "test_table", &format!("key_{i}"), &doc)
                 .await
                 .expect("Failed to put document");
         }
@@ -2535,7 +2316,7 @@ mod tests {
             );
 
             storage
-                .put("test_db", "test_table", &format!("key_{:02}", i), &doc)
+                .put("test_db", "test_table", &format!("key_{i:02}"), &doc)
                 .await
                 .expect("Failed to put document");
         }
@@ -2577,7 +2358,7 @@ mod tests {
         // Create some test databases
         for i in 0..5 {
             storage
-                .create_database(&format!("test_db_{}", i))
+                .create_database(&format!("test_db_{i}"))
                 .await
                 .expect("Failed to create database");
         }
@@ -2596,7 +2377,7 @@ mod tests {
 
         assert!(databases.len() >= 5); // Should have at least our test databases
         for i in 0..5 {
-            assert!(databases.contains(&format!("test_db_{}", i)));
+            assert!(databases.contains(&format!("test_db_{i}")));
         }
     }
 
@@ -2615,7 +2396,7 @@ mod tests {
         // Create some test databases
         for i in 0..5 {
             storage
-                .create_database(&format!("db_{:02}", i))
+                .create_database(&format!("db_{i:02}"))
                 .await
                 .expect("Failed to create database");
         }
@@ -2656,7 +2437,7 @@ mod tests {
         // Create some test tables
         for i in 0..3 {
             storage
-                .create_table("test_db", &format!("table_{}", i))
+                .create_table("test_db", &format!("table_{i}"))
                 .await
                 .expect("Failed to create table");
         }
@@ -2676,7 +2457,7 @@ mod tests {
         // Should have default table plus our created tables
         assert!(tables.len() >= 3);
         for i in 0..3 {
-            assert!(tables.contains(&format!("table_{}", i)));
+            assert!(tables.contains(&format!("table_{i}")));
         }
     }
 
@@ -2705,7 +2486,7 @@ mod tests {
         // Insert test data
         let mut keys = Vec::new();
         for i in 0..5 {
-            let key = format!("key_{}", i);
+            let key = format!("key_{i}");
             keys.push(key.clone());
 
             let mut doc = Document::new();
@@ -3010,11 +2791,10 @@ mod tests {
         let mut large_doc = Document::new();
         for i in 0..1000 {
             large_doc.insert(
-                format!("field_{}", i),
+                format!("field_{i}"),
                 Datum {
                     value: Some(datum::Value::String(format!(
-                        "value_{}_with_some_longer_content_to_make_it_bigger",
-                        i
+                        "value_{i}_with_some_longer_content_to_make_it_bigger"
                     ))),
                 },
             );
@@ -3074,12 +2854,12 @@ mod tests {
             storage
                 .put("test_db", "test_table", key, &doc)
                 .await
-                .unwrap_or_else(|_| panic!("Failed to put document with key: {}", key));
+                .unwrap_or_else(|_| panic!("Failed to put document with key: {key}"));
 
             let result = storage
                 .get("test_db", "test_table", key)
                 .await
-                .unwrap_or_else(|_| panic!("Failed to get document with key: {}", key));
+                .unwrap_or_else(|_| panic!("Failed to get document with key: {key}"));
 
             assert!(result.is_some());
         }

@@ -18,11 +18,11 @@ pub enum PlanError {
 impl fmt::Display for PlanError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            PlanError::UnsupportedOperation(msg) => write!(f, "Unsupported operation: {}", msg),
-            PlanError::InvalidExpression(msg) => write!(f, "Invalid expression: {}", msg),
+            PlanError::UnsupportedOperation(msg) => write!(f, "Unsupported operation: {msg}"),
+            PlanError::InvalidExpression(msg) => write!(f, "Invalid expression: {msg}"),
             PlanError::MissingTableReference => write!(f, "Missing table reference"),
-            PlanError::InvalidConstant(msg) => write!(f, "Invalid constant: {}", msg),
-            PlanError::OptimizationFailed(msg) => write!(f, "Optimization failed: {}", msg),
+            PlanError::InvalidConstant(msg) => write!(f, "Invalid constant: {msg}"),
+            PlanError::OptimizationFailed(msg) => write!(f, "Optimization failed: {msg}"),
         }
     }
 }

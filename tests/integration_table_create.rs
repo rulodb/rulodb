@@ -10,8 +10,7 @@ async fn test_table_create_query() {
     let table_name = &generate_unique_name("test_table");
 
     println!(
-        "Testing table create query with ID: {}, database: {}, table: {}",
-        query_id, database_name, table_name
+        "Testing table create query with ID: {query_id}, database: {database_name}, table: {table_name}"
     );
 
     // Connect to the running server
@@ -21,13 +20,13 @@ async fn test_table_create_query() {
 
     // First, create the database
     let db_create_query = create_database_create_query(database_name);
-    let db_create_envelope = create_envelope(&format!("{}-db-create", query_id), &db_create_query);
+    let db_create_envelope = create_envelope(&format!("{query_id}-db-create"), &db_create_query);
 
     let db_create_response = send_envelope_to_server(&mut stream, &db_create_envelope)
         .await
         .expect("Failed to send database create envelope");
 
-    validate_response_envelope(&db_create_response, &format!("{}-db-create", query_id))
+    validate_response_envelope(&db_create_response, &format!("{query_id}-db-create"))
         .expect("Database create response validation failed");
 
     println!("✓ Database created successfully");
@@ -71,8 +70,7 @@ async fn test_table_create_with_custom_timeout() {
     let table_name = &generate_unique_name("test_table_timeout");
 
     println!(
-        "Testing table create with custom timeout, ID: {}, database: {}, table: {}",
-        query_id, database_name, table_name
+        "Testing table create with custom timeout, ID: {query_id}, database: {database_name}, table: {table_name}"
     );
 
     // Connect to the running server
@@ -82,13 +80,13 @@ async fn test_table_create_with_custom_timeout() {
 
     // First, create the database
     let db_create_query = create_database_create_query(database_name);
-    let db_create_envelope = create_envelope(&format!("{}-db-create", query_id), &db_create_query);
+    let db_create_envelope = create_envelope(&format!("{query_id}-db-create"), &db_create_query);
 
     let db_create_response = send_envelope_to_server(&mut stream, &db_create_envelope)
         .await
         .expect("Failed to send database create envelope");
 
-    validate_response_envelope(&db_create_response, &format!("{}-db-create", query_id))
+    validate_response_envelope(&db_create_response, &format!("{query_id}-db-create"))
         .expect("Database create response validation failed");
 
     println!("✓ Database created successfully");
@@ -139,8 +137,7 @@ async fn test_table_create_duplicate() {
     let table_name = &generate_unique_name("test_table_duplicate");
 
     println!(
-        "Testing duplicate table create, ID: {}, database: {}, table: {}",
-        query_id, database_name, table_name
+        "Testing duplicate table create, ID: {query_id}, database: {database_name}, table: {table_name}"
     );
 
     // Connect to the running server
@@ -150,33 +147,33 @@ async fn test_table_create_duplicate() {
 
     // First, create the database
     let db_create_query = create_database_create_query(database_name);
-    let db_create_envelope = create_envelope(&format!("{}-db-create", query_id), &db_create_query);
+    let db_create_envelope = create_envelope(&format!("{query_id}-db-create"), &db_create_query);
 
     let db_create_response = send_envelope_to_server(&mut stream, &db_create_envelope)
         .await
         .expect("Failed to send database create envelope");
 
-    validate_response_envelope(&db_create_response, &format!("{}-db-create", query_id))
+    validate_response_envelope(&db_create_response, &format!("{query_id}-db-create"))
         .expect("Database create response validation failed");
 
     println!("✓ Database created successfully");
 
     // First table create - should succeed
     let query1 = create_table_create_query(database_name, table_name);
-    let envelope1 = create_envelope(&format!("{}-first", query_id), &query1);
+    let envelope1 = create_envelope(&format!("{query_id}-first"), &query1);
 
     let response_envelope1 = send_envelope_to_server(&mut stream, &envelope1)
         .await
         .expect("Failed to send first table create envelope");
 
-    validate_response_envelope(&response_envelope1, &format!("{}-first", query_id))
+    validate_response_envelope(&response_envelope1, &format!("{query_id}-first"))
         .expect("First table create response validation failed");
 
     println!("✓ First table create completed");
 
     // Second create - might succeed or fail depending on implementation
     let query2 = create_table_create_query(database_name, table_name);
-    let envelope2 = create_envelope(&format!("{}-second", query_id), &query2);
+    let envelope2 = create_envelope(&format!("{query_id}-second"), &query2);
 
     let response_envelope2 = send_envelope_to_server(&mut stream, &envelope2)
         .await
@@ -212,10 +209,7 @@ async fn test_table_create_multiple_tables() {
         generate_unique_name("test_table_multi_003"),
     ];
 
-    println!(
-        "Testing multiple table creates in database: {}",
-        database_name
-    );
+    println!("Testing multiple table creates in database: {database_name}");
 
     // Connect to server and create database first
     let mut stream = connect_to_server()
@@ -225,13 +219,13 @@ async fn test_table_create_multiple_tables() {
     // Create the database
     let db_create_query = create_database_create_query(database_name);
     let db_create_envelope =
-        create_envelope(&format!("{}-db-create", base_query_id), &db_create_query);
+        create_envelope(&format!("{base_query_id}-db-create"), &db_create_query);
 
     let db_create_response = send_envelope_to_server(&mut stream, &db_create_envelope)
         .await
         .expect("Failed to send database create envelope");
 
-    validate_response_envelope(&db_create_response, &format!("{}-db-create", base_query_id))
+    validate_response_envelope(&db_create_response, &format!("{base_query_id}-db-create"))
         .expect("Database create response validation failed");
 
     println!("✓ Database created successfully");
@@ -292,8 +286,7 @@ async fn test_table_create_and_verify_list() {
     let table_name = &generate_unique_name("test_table_create_verify");
 
     println!(
-        "Testing table create and verification via list, database: {}, table: {}",
-        database_name, table_name
+        "Testing table create and verification via list, database: {database_name}, table: {table_name}"
     );
 
     // Connect to the running server
@@ -356,11 +349,10 @@ async fn test_table_create_and_verify_list() {
             }
 
             if found {
-                println!("✓ Created table '{}' found in table list", table_name);
+                println!("✓ Created table '{table_name}' found in table list");
             } else {
                 println!(
-                    "ℹ Created table '{}' not found in list (may not be immediately visible)",
-                    table_name
+                    "ℹ Created table '{table_name}' not found in list (may not be immediately visible)"
                 );
                 println!("  Available tables: {:?}", array.items);
             }
@@ -383,8 +375,7 @@ async fn test_table_create_without_database() {
     let table_name = &generate_unique_name("test_table_no_db");
 
     println!(
-        "Testing table create without database, ID: {}, database: {}, table: {}",
-        query_id, database_name, table_name
+        "Testing table create without database, ID: {query_id}, database: {database_name}, table: {table_name}"
     );
 
     // Connect to the running server

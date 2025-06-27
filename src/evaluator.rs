@@ -141,7 +141,7 @@ impl Evaluator {
                         match evaluator.evaluate_expression(&filter_clone, &Datum::from(doc)) {
                             Ok(d) => matches!(d.value, Some(datum::Value::Bool(true))),
                             Err(err) => {
-                                log::debug!("Error evaluating filter: {}", err);
+                                log::debug!("Error evaluating filter: {err}");
                                 false
                             }
                         }

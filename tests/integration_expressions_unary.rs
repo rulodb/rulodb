@@ -10,8 +10,7 @@ async fn test_unary_expression_not_boolean() {
     let table_name = &generate_unique_name("test_table_unary_not");
 
     println!(
-        "Testing unary NOT expression with boolean, ID: {}, database: {}, table: {}",
-        query_id, database_name, table_name
+        "Testing unary NOT expression with boolean, ID: {query_id}, database: {database_name}, table: {table_name}"
     );
 
     // Connect to the running server
@@ -21,24 +20,21 @@ async fn test_unary_expression_not_boolean() {
 
     // Setup: Create database and table
     let db_create_query = create_database_create_query(database_name);
-    let db_create_envelope = create_envelope(&format!("{}-db-create", query_id), &db_create_query);
+    let db_create_envelope = create_envelope(&format!("{query_id}-db-create"), &db_create_query);
     let db_create_response = send_envelope_to_server(&mut stream, &db_create_envelope)
         .await
         .expect("Failed to send database create envelope");
-    validate_response_envelope(&db_create_response, &format!("{}-db-create", query_id))
+    validate_response_envelope(&db_create_response, &format!("{query_id}-db-create"))
         .expect("Database create response validation failed");
 
     let table_create_query = create_table_create_query(database_name, table_name);
     let table_create_envelope =
-        create_envelope(&format!("{}-table-create", query_id), &table_create_query);
+        create_envelope(&format!("{query_id}-table-create"), &table_create_query);
     let table_create_response = send_envelope_to_server(&mut stream, &table_create_envelope)
         .await
         .expect("Failed to send table create envelope");
-    validate_response_envelope(
-        &table_create_response,
-        &format!("{}-table-create", query_id),
-    )
-    .expect("Table create response validation failed");
+    validate_response_envelope(&table_create_response, &format!("{query_id}-table-create"))
+        .expect("Table create response validation failed");
 
     println!("✓ Database and table created successfully");
 
@@ -62,11 +58,11 @@ async fn test_unary_expression_not_boolean() {
     ];
 
     let insert_query = create_insert_query(database_name, table_name, documents);
-    let insert_envelope = create_envelope(&format!("{}-insert", query_id), &insert_query);
+    let insert_envelope = create_envelope(&format!("{query_id}-insert"), &insert_query);
     let insert_response = send_envelope_to_server(&mut stream, &insert_envelope)
         .await
         .expect("Failed to send insert envelope");
-    validate_response_envelope(&insert_response, &format!("{}-insert", query_id))
+    validate_response_envelope(&insert_response, &format!("{query_id}-insert"))
         .expect("Insert response validation failed");
 
     println!("✓ Test documents inserted successfully");
@@ -81,11 +77,11 @@ async fn test_unary_expression_not_boolean() {
     };
     let filter_query = create_filter_query(database_name, table_name, unary_not_expr);
 
-    let filter_envelope = create_envelope(&format!("{}-filter", query_id), &filter_query);
+    let filter_envelope = create_envelope(&format!("{query_id}-filter"), &filter_query);
     let filter_response = send_envelope_to_server(&mut stream, &filter_envelope)
         .await
         .expect("Failed to send filter envelope");
-    validate_response_envelope(&filter_response, &format!("{}-filter", query_id))
+    validate_response_envelope(&filter_response, &format!("{query_id}-filter"))
         .expect("Filter response validation failed");
 
     // Decode and validate the response
@@ -119,7 +115,7 @@ async fn test_unary_expression_not_boolean() {
 
     // Cleanup
     let db_drop_query = create_database_drop_query(database_name);
-    let db_drop_envelope = create_envelope(&format!("{}-db-drop", query_id), &db_drop_query);
+    let db_drop_envelope = create_envelope(&format!("{query_id}-db-drop"), &db_drop_query);
     let _db_drop_response = send_envelope_to_server(&mut stream, &db_drop_envelope)
         .await
         .expect("Failed to send database drop envelope");
@@ -134,8 +130,7 @@ async fn test_unary_expression_not_with_binary_expression() {
     let table_name = &generate_unique_name("test_table_unary_not_binary");
 
     println!(
-        "Testing unary NOT with binary expression, ID: {}, database: {}, table: {}",
-        query_id, database_name, table_name
+        "Testing unary NOT with binary expression, ID: {query_id}, database: {database_name}, table: {table_name}"
     );
 
     let mut stream = connect_to_server()
@@ -144,14 +139,14 @@ async fn test_unary_expression_not_with_binary_expression() {
 
     // Setup database and table
     let db_create_query = create_database_create_query(database_name);
-    let db_create_envelope = create_envelope(&format!("{}-db-create", query_id), &db_create_query);
+    let db_create_envelope = create_envelope(&format!("{query_id}-db-create"), &db_create_query);
     send_envelope_to_server(&mut stream, &db_create_envelope)
         .await
         .expect("Failed to create database");
 
     let table_create_query = create_table_create_query(database_name, table_name);
     let table_create_envelope =
-        create_envelope(&format!("{}-table-create", query_id), &table_create_query);
+        create_envelope(&format!("{query_id}-table-create"), &table_create_query);
     send_envelope_to_server(&mut stream, &table_create_envelope)
         .await
         .expect("Failed to create table");
@@ -176,7 +171,7 @@ async fn test_unary_expression_not_with_binary_expression() {
     ];
 
     let insert_query = create_insert_query(database_name, table_name, documents);
-    let insert_envelope = create_envelope(&format!("{}-insert", query_id), &insert_query);
+    let insert_envelope = create_envelope(&format!("{query_id}-insert"), &insert_query);
     send_envelope_to_server(&mut stream, &insert_envelope)
         .await
         .expect("Failed to insert documents");
@@ -195,7 +190,7 @@ async fn test_unary_expression_not_with_binary_expression() {
     };
     let filter_query = create_filter_query(database_name, table_name, unary_not_expr);
 
-    let filter_envelope = create_envelope(&format!("{}-filter", query_id), &filter_query);
+    let filter_envelope = create_envelope(&format!("{query_id}-filter"), &filter_query);
     let filter_response = send_envelope_to_server(&mut stream, &filter_envelope)
         .await
         .expect("Failed to send filter envelope");
@@ -222,7 +217,7 @@ async fn test_unary_expression_not_with_binary_expression() {
 
     // Cleanup
     let db_drop_query = create_database_drop_query(database_name);
-    let db_drop_envelope = create_envelope(&format!("{}-db-drop", query_id), &db_drop_query);
+    let db_drop_envelope = create_envelope(&format!("{query_id}-db-drop"), &db_drop_query);
     send_envelope_to_server(&mut stream, &db_drop_envelope)
         .await
         .expect("Failed to drop database");
@@ -237,8 +232,7 @@ async fn test_unary_expression_not_with_logical_operations() {
     let table_name = &generate_unique_name("test_table_unary_not_logical");
 
     println!(
-        "Testing unary NOT with logical operations, ID: {}, database: {}, table: {}",
-        query_id, database_name, table_name
+        "Testing unary NOT with logical operations, ID: {query_id}, database: {database_name}, table: {table_name}"
     );
 
     let mut stream = connect_to_server()
@@ -247,14 +241,14 @@ async fn test_unary_expression_not_with_logical_operations() {
 
     // Setup
     let db_create_query = create_database_create_query(database_name);
-    let db_create_envelope = create_envelope(&format!("{}-db-create", query_id), &db_create_query);
+    let db_create_envelope = create_envelope(&format!("{query_id}-db-create"), &db_create_query);
     send_envelope_to_server(&mut stream, &db_create_envelope)
         .await
         .expect("Failed to create database");
 
     let table_create_query = create_table_create_query(database_name, table_name);
     let table_create_envelope =
-        create_envelope(&format!("{}-table-create", query_id), &table_create_query);
+        create_envelope(&format!("{query_id}-table-create"), &table_create_query);
     send_envelope_to_server(&mut stream, &table_create_envelope)
         .await
         .expect("Failed to create table");
@@ -288,7 +282,7 @@ async fn test_unary_expression_not_with_logical_operations() {
     ];
 
     let insert_query = create_insert_query(database_name, table_name, documents);
-    let insert_envelope = create_envelope(&format!("{}-insert", query_id), &insert_query);
+    let insert_envelope = create_envelope(&format!("{query_id}-insert"), &insert_query);
     send_envelope_to_server(&mut stream, &insert_envelope)
         .await
         .expect("Failed to insert documents");
@@ -315,7 +309,7 @@ async fn test_unary_expression_not_with_logical_operations() {
     };
     let filter_query = create_filter_query(database_name, table_name, not_and_expr);
 
-    let filter_envelope = create_envelope(&format!("{}-filter-not-and", query_id), &filter_query);
+    let filter_envelope = create_envelope(&format!("{query_id}-filter-not-and"), &filter_query);
     let filter_response = send_envelope_to_server(&mut stream, &filter_envelope)
         .await
         .expect("Failed to send NOT AND filter envelope");
@@ -359,7 +353,7 @@ async fn test_unary_expression_not_with_logical_operations() {
     };
     let filter_query = create_filter_query(database_name, table_name, not_or_expr);
 
-    let filter_envelope = create_envelope(&format!("{}-filter-not-or", query_id), &filter_query);
+    let filter_envelope = create_envelope(&format!("{query_id}-filter-not-or"), &filter_query);
     let filter_response = send_envelope_to_server(&mut stream, &filter_envelope)
         .await
         .expect("Failed to send NOT OR filter envelope");
@@ -401,7 +395,7 @@ async fn test_unary_expression_not_with_logical_operations() {
 
     // Cleanup
     let db_drop_query = create_database_drop_query(database_name);
-    let db_drop_envelope = create_envelope(&format!("{}-db-drop", query_id), &db_drop_query);
+    let db_drop_envelope = create_envelope(&format!("{query_id}-db-drop"), &db_drop_query);
     send_envelope_to_server(&mut stream, &db_drop_envelope)
         .await
         .expect("Failed to drop database");
@@ -416,8 +410,7 @@ async fn test_unary_expression_double_negation() {
     let table_name = &generate_unique_name("test_table_unary_double_not");
 
     println!(
-        "Testing double negation (NOT NOT), ID: {}, database: {}, table: {}",
-        query_id, database_name, table_name
+        "Testing double negation (NOT NOT), ID: {query_id}, database: {database_name}, table: {table_name}"
     );
 
     let mut stream = connect_to_server()
@@ -426,14 +419,14 @@ async fn test_unary_expression_double_negation() {
 
     // Setup
     let db_create_query = create_database_create_query(database_name);
-    let db_create_envelope = create_envelope(&format!("{}-db-create", query_id), &db_create_query);
+    let db_create_envelope = create_envelope(&format!("{query_id}-db-create"), &db_create_query);
     send_envelope_to_server(&mut stream, &db_create_envelope)
         .await
         .expect("Failed to create database");
 
     let table_create_query = create_table_create_query(database_name, table_name);
     let table_create_envelope =
-        create_envelope(&format!("{}-table-create", query_id), &table_create_query);
+        create_envelope(&format!("{query_id}-table-create"), &table_create_query);
     send_envelope_to_server(&mut stream, &table_create_envelope)
         .await
         .expect("Failed to create table");
@@ -455,7 +448,7 @@ async fn test_unary_expression_double_negation() {
     ];
 
     let insert_query = create_insert_query(database_name, table_name, documents);
-    let insert_envelope = create_envelope(&format!("{}-insert", query_id), &insert_query);
+    let insert_envelope = create_envelope(&format!("{query_id}-insert"), &insert_query);
     send_envelope_to_server(&mut stream, &insert_envelope)
         .await
         .expect("Failed to insert documents");
@@ -477,8 +470,7 @@ async fn test_unary_expression_double_negation() {
     };
     let filter_query = create_filter_query(database_name, table_name, double_not);
 
-    let filter_envelope =
-        create_envelope(&format!("{}-filter-double-not", query_id), &filter_query);
+    let filter_envelope = create_envelope(&format!("{query_id}-filter-double-not"), &filter_query);
     let filter_response = send_envelope_to_server(&mut stream, &filter_envelope)
         .await
         .expect("Failed to send double NOT filter envelope");
@@ -513,7 +505,7 @@ async fn test_unary_expression_double_negation() {
 
     // Cleanup
     let db_drop_query = create_database_drop_query(database_name);
-    let db_drop_envelope = create_envelope(&format!("{}-db-drop", query_id), &db_drop_query);
+    let db_drop_envelope = create_envelope(&format!("{query_id}-db-drop"), &db_drop_query);
     send_envelope_to_server(&mut stream, &db_drop_envelope)
         .await
         .expect("Failed to drop database");

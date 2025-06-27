@@ -8,10 +8,7 @@ async fn test_database_drop_query() {
     let query_id = "test-db-drop-001";
     let database_name = &generate_unique_name("test_database_drop");
 
-    println!(
-        "Testing database drop query with ID: {}, database: {}",
-        query_id, database_name
-    );
+    println!("Testing database drop query with ID: {query_id}, database: {database_name}");
 
     // Connect to the running server
     let mut stream = connect_to_server()
@@ -57,8 +54,7 @@ async fn test_database_drop_with_custom_timeout() {
     let database_name = &generate_unique_name("test_database_drop_timeout");
 
     println!(
-        "Testing database drop with custom timeout, ID: {}, database: {}",
-        query_id, database_name
+        "Testing database drop with custom timeout, ID: {query_id}, database: {database_name}"
     );
 
     // Connect to the running server
@@ -110,10 +106,7 @@ async fn test_database_drop_nonexistent() {
     let query_id = "test-db-drop-nonexistent-003";
     let database_name = &generate_unique_name("test_database_nonexistent");
 
-    println!(
-        "Testing drop of nonexistent database, ID: {}, database: {}",
-        query_id, database_name
-    );
+    println!("Testing drop of nonexistent database, ID: {query_id}, database: {database_name}");
 
     // Connect to the running server
     let mut stream = connect_to_server()
@@ -225,10 +218,7 @@ async fn test_database_create_and_drop_cycle() {
     let query_id_drop = "test-db-cycle-drop";
     let database_name = &generate_unique_name("test_database_cycle");
 
-    println!(
-        "Testing database create and drop cycle, database: {}",
-        database_name
-    );
+    println!("Testing database create and drop cycle, database: {database_name}");
 
     // Connect to the running server
     let mut stream = connect_to_server()
@@ -285,10 +275,7 @@ async fn test_database_drop_and_verify_list() {
     let query_id_list = "test-db-drop-verify-list";
     let database_name = &generate_unique_name("test_database_drop_verify");
 
-    println!(
-        "Testing database drop and verification via list, database: {}",
-        database_name
-    );
+    println!("Testing database drop and verification via list, database: {database_name}");
 
     // Connect to the running server
     let mut stream = connect_to_server()
@@ -350,14 +337,10 @@ async fn test_database_drop_and_verify_list() {
             }
 
             if !found {
-                println!(
-                    "✓ Dropped database '{}' no longer appears in database list",
-                    database_name
-                );
+                println!("✓ Dropped database '{database_name}' no longer appears in database list");
             } else {
                 println!(
-                    "ℹ Dropped database '{}' still appears in list (may not be immediately removed)",
-                    database_name
+                    "ℹ Dropped database '{database_name}' still appears in list (may not be immediately removed)"
                 );
             }
         }

@@ -10,8 +10,7 @@ async fn test_match_expression_basic_regex() {
     let table_name = &generate_unique_name("test_table_match_basic");
 
     println!(
-        "Testing basic match expression with regex, ID: {}, database: {}, table: {}",
-        query_id, database_name, table_name
+        "Testing basic match expression with regex, ID: {query_id}, database: {database_name}, table: {table_name}"
     );
 
     // Connect to the running server
@@ -21,24 +20,21 @@ async fn test_match_expression_basic_regex() {
 
     // Setup: Create database and table
     let db_create_query = create_database_create_query(database_name);
-    let db_create_envelope = create_envelope(&format!("{}-db-create", query_id), &db_create_query);
+    let db_create_envelope = create_envelope(&format!("{query_id}-db-create"), &db_create_query);
     let db_create_response = send_envelope_to_server(&mut stream, &db_create_envelope)
         .await
         .expect("Failed to send database create envelope");
-    validate_response_envelope(&db_create_response, &format!("{}-db-create", query_id))
+    validate_response_envelope(&db_create_response, &format!("{query_id}-db-create"))
         .expect("Database create response validation failed");
 
     let table_create_query = create_table_create_query(database_name, table_name);
     let table_create_envelope =
-        create_envelope(&format!("{}-table-create", query_id), &table_create_query);
+        create_envelope(&format!("{query_id}-table-create"), &table_create_query);
     let table_create_response = send_envelope_to_server(&mut stream, &table_create_envelope)
         .await
         .expect("Failed to send table create envelope");
-    validate_response_envelope(
-        &table_create_response,
-        &format!("{}-table-create", query_id),
-    )
-    .expect("Table create response validation failed");
+    validate_response_envelope(&table_create_response, &format!("{query_id}-table-create"))
+        .expect("Table create response validation failed");
 
     println!("✓ Database and table created successfully");
 
@@ -67,11 +63,11 @@ async fn test_match_expression_basic_regex() {
     ];
 
     let insert_query = create_insert_query(database_name, table_name, documents);
-    let insert_envelope = create_envelope(&format!("{}-insert", query_id), &insert_query);
+    let insert_envelope = create_envelope(&format!("{query_id}-insert"), &insert_query);
     let insert_response = send_envelope_to_server(&mut stream, &insert_envelope)
         .await
         .expect("Failed to send insert envelope");
-    validate_response_envelope(&insert_response, &format!("{}-insert", query_id))
+    validate_response_envelope(&insert_response, &format!("{query_id}-insert"))
         .expect("Insert response validation failed");
 
     println!("✓ Test documents inserted successfully");
@@ -87,11 +83,11 @@ async fn test_match_expression_basic_regex() {
     };
     let filter_query = create_filter_query(database_name, table_name, match_expr);
 
-    let filter_envelope = create_envelope(&format!("{}-filter", query_id), &filter_query);
+    let filter_envelope = create_envelope(&format!("{query_id}-filter"), &filter_query);
     let filter_response = send_envelope_to_server(&mut stream, &filter_envelope)
         .await
         .expect("Failed to send filter envelope");
-    validate_response_envelope(&filter_response, &format!("{}-filter", query_id))
+    validate_response_envelope(&filter_response, &format!("{query_id}-filter"))
         .expect("Filter response validation failed");
 
     // Decode and validate the response
@@ -107,8 +103,7 @@ async fn test_match_expression_basic_regex() {
                 if let Some(proto::datum::Value::String(email_val)) = &email.value {
                     assert!(
                         email_val.ends_with(".com"),
-                        "Email should end with .com: {}",
-                        email_val
+                        "Email should end with .com: {email_val}"
                     );
                 } else {
                     panic!("Email field should be a string");
@@ -125,7 +120,7 @@ async fn test_match_expression_basic_regex() {
 
     // Cleanup
     let db_drop_query = create_database_drop_query(database_name);
-    let db_drop_envelope = create_envelope(&format!("{}-db-drop", query_id), &db_drop_query);
+    let db_drop_envelope = create_envelope(&format!("{query_id}-db-drop"), &db_drop_query);
     let _db_drop_response = send_envelope_to_server(&mut stream, &db_drop_envelope)
         .await
         .expect("Failed to send database drop envelope");
@@ -140,8 +135,7 @@ async fn test_match_expression_phone_number_patterns() {
     let table_name = &generate_unique_name("test_table_match_phone");
 
     println!(
-        "Testing match expression for phone number patterns, ID: {}, database: {}, table: {}",
-        query_id, database_name, table_name
+        "Testing match expression for phone number patterns, ID: {query_id}, database: {database_name}, table: {table_name}"
     );
 
     let mut stream = connect_to_server()
@@ -150,14 +144,14 @@ async fn test_match_expression_phone_number_patterns() {
 
     // Setup database and table
     let db_create_query = create_database_create_query(database_name);
-    let db_create_envelope = create_envelope(&format!("{}-db-create", query_id), &db_create_query);
+    let db_create_envelope = create_envelope(&format!("{query_id}-db-create"), &db_create_query);
     send_envelope_to_server(&mut stream, &db_create_envelope)
         .await
         .expect("Failed to create database");
 
     let table_create_query = create_table_create_query(database_name, table_name);
     let table_create_envelope =
-        create_envelope(&format!("{}-table-create", query_id), &table_create_query);
+        create_envelope(&format!("{query_id}-table-create"), &table_create_query);
     send_envelope_to_server(&mut stream, &table_create_envelope)
         .await
         .expect("Failed to create table");
@@ -187,7 +181,7 @@ async fn test_match_expression_phone_number_patterns() {
     ];
 
     let insert_query = create_insert_query(database_name, table_name, documents);
-    let insert_envelope = create_envelope(&format!("{}-insert", query_id), &insert_query);
+    let insert_envelope = create_envelope(&format!("{query_id}-insert"), &insert_query);
     send_envelope_to_server(&mut stream, &insert_envelope)
         .await
         .expect("Failed to insert documents");
@@ -205,7 +199,7 @@ async fn test_match_expression_phone_number_patterns() {
     };
     let filter_query = create_filter_query(database_name, table_name, match_expr);
 
-    let filter_envelope = create_envelope(&format!("{}-filter", query_id), &filter_query);
+    let filter_envelope = create_envelope(&format!("{query_id}-filter"), &filter_query);
     let filter_response = send_envelope_to_server(&mut stream, &filter_envelope)
         .await
         .expect("Failed to send filter envelope");
@@ -227,8 +221,7 @@ async fn test_match_expression_phone_number_patterns() {
                         contact_val.contains('-')
                             || contact_val.contains('.')
                             || contact_val.contains('('),
-                        "Contact should be a formatted phone number: {}",
-                        contact_val
+                        "Contact should be a formatted phone number: {contact_val}"
                     );
                 }
             }
@@ -241,7 +234,7 @@ async fn test_match_expression_phone_number_patterns() {
 
     // Cleanup
     let db_drop_query = create_database_drop_query(database_name);
-    let db_drop_envelope = create_envelope(&format!("{}-db-drop", query_id), &db_drop_query);
+    let db_drop_envelope = create_envelope(&format!("{query_id}-db-drop"), &db_drop_query);
     send_envelope_to_server(&mut stream, &db_drop_envelope)
         .await
         .expect("Failed to drop database");
@@ -256,8 +249,7 @@ async fn test_match_expression_case_insensitive() {
     let table_name = &generate_unique_name("test_table_match_case");
 
     println!(
-        "Testing case-insensitive match expression, ID: {}, database: {}, table: {}",
-        query_id, database_name, table_name
+        "Testing case-insensitive match expression, ID: {query_id}, database: {database_name}, table: {table_name}"
     );
 
     let mut stream = connect_to_server()
@@ -266,14 +258,14 @@ async fn test_match_expression_case_insensitive() {
 
     // Setup
     let db_create_query = create_database_create_query(database_name);
-    let db_create_envelope = create_envelope(&format!("{}-db-create", query_id), &db_create_query);
+    let db_create_envelope = create_envelope(&format!("{query_id}-db-create"), &db_create_query);
     send_envelope_to_server(&mut stream, &db_create_envelope)
         .await
         .expect("Failed to create database");
 
     let table_create_query = create_table_create_query(database_name, table_name);
     let table_create_envelope =
-        create_envelope(&format!("{}-table-create", query_id), &table_create_query);
+        create_envelope(&format!("{query_id}-table-create"), &table_create_query);
     send_envelope_to_server(&mut stream, &table_create_envelope)
         .await
         .expect("Failed to create table");
@@ -299,7 +291,7 @@ async fn test_match_expression_case_insensitive() {
     ];
 
     let insert_query = create_insert_query(database_name, table_name, documents);
-    let insert_envelope = create_envelope(&format!("{}-insert", query_id), &insert_query);
+    let insert_envelope = create_envelope(&format!("{query_id}-insert"), &insert_query);
     send_envelope_to_server(&mut stream, &insert_envelope)
         .await
         .expect("Failed to insert documents");
@@ -315,7 +307,7 @@ async fn test_match_expression_case_insensitive() {
     };
     let filter_query = create_filter_query(database_name, table_name, match_expr);
 
-    let filter_envelope = create_envelope(&format!("{}-filter", query_id), &filter_query);
+    let filter_envelope = create_envelope(&format!("{query_id}-filter"), &filter_query);
     let filter_response = send_envelope_to_server(&mut stream, &filter_envelope)
         .await
         .expect("Failed to send filter envelope");
@@ -337,8 +329,7 @@ async fn test_match_expression_case_insensitive() {
                     let name_lower = name_val.to_lowercase();
                     assert!(
                         name_lower.contains("smith") || name_lower.contains("brown"),
-                        "Name should contain Smith or Brown: {}",
-                        name_val
+                        "Name should contain Smith or Brown: {name_val}"
                     );
                 }
             }
@@ -351,7 +342,7 @@ async fn test_match_expression_case_insensitive() {
 
     // Cleanup
     let db_drop_query = create_database_drop_query(database_name);
-    let db_drop_envelope = create_envelope(&format!("{}-db-drop", query_id), &db_drop_query);
+    let db_drop_envelope = create_envelope(&format!("{query_id}-db-drop"), &db_drop_query);
     send_envelope_to_server(&mut stream, &db_drop_envelope)
         .await
         .expect("Failed to drop database");
@@ -366,8 +357,7 @@ async fn test_match_expression_complex_patterns() {
     let table_name = &generate_unique_name("test_table_match_complex");
 
     println!(
-        "Testing complex match expression patterns, ID: {}, database: {}, table: {}",
-        query_id, database_name, table_name
+        "Testing complex match expression patterns, ID: {query_id}, database: {database_name}, table: {table_name}"
     );
 
     let mut stream = connect_to_server()
@@ -376,14 +366,14 @@ async fn test_match_expression_complex_patterns() {
 
     // Setup
     let db_create_query = create_database_create_query(database_name);
-    let db_create_envelope = create_envelope(&format!("{}-db-create", query_id), &db_create_query);
+    let db_create_envelope = create_envelope(&format!("{query_id}-db-create"), &db_create_query);
     send_envelope_to_server(&mut stream, &db_create_envelope)
         .await
         .expect("Failed to create database");
 
     let table_create_query = create_table_create_query(database_name, table_name);
     let table_create_envelope =
-        create_envelope(&format!("{}-table-create", query_id), &table_create_query);
+        create_envelope(&format!("{query_id}-table-create"), &table_create_query);
     send_envelope_to_server(&mut stream, &table_create_envelope)
         .await
         .expect("Failed to create table");
@@ -430,7 +420,7 @@ async fn test_match_expression_complex_patterns() {
     ];
 
     let insert_query = create_insert_query(database_name, table_name, documents);
-    let insert_envelope = create_envelope(&format!("{}-insert", query_id), &insert_query);
+    let insert_envelope = create_envelope(&format!("{query_id}-insert"), &insert_query);
     send_envelope_to_server(&mut stream, &insert_envelope)
         .await
         .expect("Failed to insert documents");
@@ -446,7 +436,7 @@ async fn test_match_expression_complex_patterns() {
     };
     let filter_query = create_filter_query(database_name, table_name, match_expr);
 
-    let filter_envelope = create_envelope(&format!("{}-filter", query_id), &filter_query);
+    let filter_envelope = create_envelope(&format!("{query_id}-filter"), &filter_query);
     let filter_response = send_envelope_to_server(&mut stream, &filter_envelope)
         .await
         .expect("Failed to send filter envelope");
@@ -463,8 +453,7 @@ async fn test_match_expression_complex_patterns() {
                 if let Some(proto::datum::Value::String(url_val)) = &url.value {
                     assert!(
                         url_val.starts_with("https://"),
-                        "URL should start with https://: {}",
-                        url_val
+                        "URL should start with https://: {url_val}"
                     );
                 }
             }
@@ -486,7 +475,7 @@ async fn test_match_expression_complex_patterns() {
     };
     let filter_query = create_filter_query(database_name, table_name, match_expr);
 
-    let filter_envelope = create_envelope(&format!("{}-filter-domain", query_id), &filter_query);
+    let filter_envelope = create_envelope(&format!("{query_id}-filter-domain"), &filter_query);
     let filter_response = send_envelope_to_server(&mut stream, &filter_envelope)
         .await
         .expect("Failed to send filter envelope");
@@ -507,8 +496,7 @@ async fn test_match_expression_complex_patterns() {
                 if let Some(proto::datum::Value::String(url_val)) = &url.value {
                     assert!(
                         url_val.contains(".com") || url_val.contains(".org"),
-                        "URL should contain .com or .org: {}",
-                        url_val
+                        "URL should contain .com or .org: {url_val}"
                     );
                 }
             }
@@ -521,7 +509,7 @@ async fn test_match_expression_complex_patterns() {
 
     // Cleanup
     let db_drop_query = create_database_drop_query(database_name);
-    let db_drop_envelope = create_envelope(&format!("{}-db-drop", query_id), &db_drop_query);
+    let db_drop_envelope = create_envelope(&format!("{query_id}-db-drop"), &db_drop_query);
     send_envelope_to_server(&mut stream, &db_drop_envelope)
         .await
         .expect("Failed to drop database");
@@ -536,8 +524,7 @@ async fn test_match_expression_with_binary_operations() {
     let table_name = &generate_unique_name("test_table_match_binary");
 
     println!(
-        "Testing match expression combined with binary operations, ID: {}, database: {}, table: {}",
-        query_id, database_name, table_name
+        "Testing match expression combined with binary operations, ID: {query_id}, database: {database_name}, table: {table_name}"
     );
 
     let mut stream = connect_to_server()
@@ -546,14 +533,14 @@ async fn test_match_expression_with_binary_operations() {
 
     // Setup
     let db_create_query = create_database_create_query(database_name);
-    let db_create_envelope = create_envelope(&format!("{}-db-create", query_id), &db_create_query);
+    let db_create_envelope = create_envelope(&format!("{query_id}-db-create"), &db_create_query);
     send_envelope_to_server(&mut stream, &db_create_envelope)
         .await
         .expect("Failed to create database");
 
     let table_create_query = create_table_create_query(database_name, table_name);
     let table_create_envelope =
-        create_envelope(&format!("{}-table-create", query_id), &table_create_query);
+        create_envelope(&format!("{query_id}-table-create"), &table_create_query);
     send_envelope_to_server(&mut stream, &table_create_envelope)
         .await
         .expect("Failed to create table");
@@ -587,7 +574,7 @@ async fn test_match_expression_with_binary_operations() {
     ];
 
     let insert_query = create_insert_query(database_name, table_name, documents);
-    let insert_envelope = create_envelope(&format!("{}-insert", query_id), &insert_query);
+    let insert_envelope = create_envelope(&format!("{query_id}-insert"), &insert_query);
     send_envelope_to_server(&mut stream, &insert_envelope)
         .await
         .expect("Failed to insert documents");
@@ -613,7 +600,7 @@ async fn test_match_expression_with_binary_operations() {
 
     let filter_query = create_filter_query(database_name, table_name, combined_expr);
 
-    let filter_envelope = create_envelope(&format!("{}-filter-combined", query_id), &filter_query);
+    let filter_envelope = create_envelope(&format!("{query_id}-filter-combined"), &filter_query);
     let filter_response = send_envelope_to_server(&mut stream, &filter_envelope)
         .await
         .expect("Failed to send filter envelope");
@@ -672,7 +659,7 @@ async fn test_match_expression_with_binary_operations() {
 
     let filter_query = create_filter_query(database_name, table_name, or_expr);
 
-    let filter_envelope = create_envelope(&format!("{}-filter-or", query_id), &filter_query);
+    let filter_envelope = create_envelope(&format!("{query_id}-filter-or"), &filter_query);
     let filter_response = send_envelope_to_server(&mut stream, &filter_envelope)
         .await
         .expect("Failed to send filter envelope");
@@ -693,7 +680,7 @@ async fn test_match_expression_with_binary_operations() {
 
     // Cleanup
     let db_drop_query = create_database_drop_query(database_name);
-    let db_drop_envelope = create_envelope(&format!("{}-db-drop", query_id), &db_drop_query);
+    let db_drop_envelope = create_envelope(&format!("{query_id}-db-drop"), &db_drop_query);
     send_envelope_to_server(&mut stream, &db_drop_envelope)
         .await
         .expect("Failed to drop database");

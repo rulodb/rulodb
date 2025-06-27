@@ -10,8 +10,7 @@ async fn test_variable_expression_simple() {
     let table_name = &generate_unique_name("test_table_variable_simple");
 
     println!(
-        "Testing simple variable expression, ID: {}, database: {}, table: {}",
-        query_id, database_name, table_name
+        "Testing simple variable expression, ID: {query_id}, database: {database_name}, table: {table_name}"
     );
 
     // Connect to the running server
@@ -21,24 +20,21 @@ async fn test_variable_expression_simple() {
 
     // Setup: Create database and table
     let db_create_query = create_database_create_query(database_name);
-    let db_create_envelope = create_envelope(&format!("{}-db-create", query_id), &db_create_query);
+    let db_create_envelope = create_envelope(&format!("{query_id}-db-create"), &db_create_query);
     let db_create_response = send_envelope_to_server(&mut stream, &db_create_envelope)
         .await
         .expect("Failed to send database create envelope");
-    validate_response_envelope(&db_create_response, &format!("{}-db-create", query_id))
+    validate_response_envelope(&db_create_response, &format!("{query_id}-db-create"))
         .expect("Database create response validation failed");
 
     let table_create_query = create_table_create_query(database_name, table_name);
     let table_create_envelope =
-        create_envelope(&format!("{}-table-create", query_id), &table_create_query);
+        create_envelope(&format!("{query_id}-table-create"), &table_create_query);
     let table_create_response = send_envelope_to_server(&mut stream, &table_create_envelope)
         .await
         .expect("Failed to send table create envelope");
-    validate_response_envelope(
-        &table_create_response,
-        &format!("{}-table-create", query_id),
-    )
-    .expect("Table create response validation failed");
+    validate_response_envelope(&table_create_response, &format!("{query_id}-table-create"))
+        .expect("Table create response validation failed");
 
     println!("✓ Database and table created successfully");
 
@@ -67,11 +63,11 @@ async fn test_variable_expression_simple() {
     ];
 
     let insert_query = create_insert_query(database_name, table_name, documents);
-    let insert_envelope = create_envelope(&format!("{}-insert", query_id), &insert_query);
+    let insert_envelope = create_envelope(&format!("{query_id}-insert"), &insert_query);
     let insert_response = send_envelope_to_server(&mut stream, &insert_envelope)
         .await
         .expect("Failed to send insert envelope");
-    validate_response_envelope(&insert_response, &format!("{}-insert", query_id))
+    validate_response_envelope(&insert_response, &format!("{query_id}-insert"))
         .expect("Insert response validation failed");
 
     println!("✓ Test documents inserted successfully");
@@ -86,13 +82,13 @@ async fn test_variable_expression_simple() {
     // Note: Variable expressions are not yet supported in the server implementation
     // This test now uses a literal value instead of a variable reference
 
-    let filter_envelope = create_envelope(&format!("{}-filter", query_id), &filter_query);
+    let filter_envelope = create_envelope(&format!("{query_id}-filter"), &filter_query);
     let filter_response = send_envelope_to_server(&mut stream, &filter_envelope)
         .await
         .expect("Failed to send filter envelope");
 
     // Validate the response structure
-    validate_response_envelope(&filter_response, &format!("{}-filter", query_id))
+    validate_response_envelope(&filter_response, &format!("{query_id}-filter"))
         .expect("Filter response validation failed");
     println!(
         "✓ Category filter expression executed successfully (Note: Variable expressions not yet supported)"
@@ -100,7 +96,7 @@ async fn test_variable_expression_simple() {
 
     // Cleanup
     let db_drop_query = create_database_drop_query(database_name);
-    let db_drop_envelope = create_envelope(&format!("{}-db-drop", query_id), &db_drop_query);
+    let db_drop_envelope = create_envelope(&format!("{query_id}-db-drop"), &db_drop_query);
     let _db_drop_response = send_envelope_to_server(&mut stream, &db_drop_envelope)
         .await
         .expect("Failed to send database drop envelope");
@@ -115,8 +111,7 @@ async fn test_variable_expression_multiple_variables() {
     let table_name = &generate_unique_name("test_table_variable_multiple");
 
     println!(
-        "Testing multiple variable expressions, ID: {}, database: {}, table: {}",
-        query_id, database_name, table_name
+        "Testing multiple variable expressions, ID: {query_id}, database: {database_name}, table: {table_name}"
     );
 
     let mut stream = connect_to_server()
@@ -125,14 +120,14 @@ async fn test_variable_expression_multiple_variables() {
 
     // Setup database and table
     let db_create_query = create_database_create_query(database_name);
-    let db_create_envelope = create_envelope(&format!("{}-db-create", query_id), &db_create_query);
+    let db_create_envelope = create_envelope(&format!("{query_id}-db-create"), &db_create_query);
     send_envelope_to_server(&mut stream, &db_create_envelope)
         .await
         .expect("Failed to create database");
 
     let table_create_query = create_table_create_query(database_name, table_name);
     let table_create_envelope =
-        create_envelope(&format!("{}-table-create", query_id), &table_create_query);
+        create_envelope(&format!("{query_id}-table-create"), &table_create_query);
     send_envelope_to_server(&mut stream, &table_create_envelope)
         .await
         .expect("Failed to create table");
@@ -154,7 +149,7 @@ async fn test_variable_expression_multiple_variables() {
     ];
 
     let insert_query = create_insert_query(database_name, table_name, documents);
-    let insert_envelope = create_envelope(&format!("{}-insert", query_id), &insert_query);
+    let insert_envelope = create_envelope(&format!("{query_id}-insert"), &insert_query);
     send_envelope_to_server(&mut stream, &insert_envelope)
         .await
         .expect("Failed to insert documents");
@@ -180,13 +175,13 @@ async fn test_variable_expression_multiple_variables() {
 
     let filter_query = create_filter_query(database_name, table_name, combined_expr);
 
-    let filter_envelope = create_envelope(&format!("{}-filter", query_id), &filter_query);
+    let filter_envelope = create_envelope(&format!("{query_id}-filter"), &filter_query);
     let filter_response = send_envelope_to_server(&mut stream, &filter_envelope)
         .await
         .expect("Failed to send filter envelope");
 
     // Validate the response structure
-    validate_response_envelope(&filter_response, &format!("{}-filter", query_id))
+    validate_response_envelope(&filter_response, &format!("{query_id}-filter"))
         .expect("Filter response validation failed");
     println!(
         "✓ Multiple filter expressions executed successfully (Note: Variable expressions not yet supported)"
@@ -194,7 +189,7 @@ async fn test_variable_expression_multiple_variables() {
 
     // Cleanup
     let db_drop_query = create_database_drop_query(database_name);
-    let db_drop_envelope = create_envelope(&format!("{}-db-drop", query_id), &db_drop_query);
+    let db_drop_envelope = create_envelope(&format!("{query_id}-db-drop"), &db_drop_query);
     send_envelope_to_server(&mut stream, &db_drop_envelope)
         .await
         .expect("Failed to drop database");
@@ -210,8 +205,7 @@ async fn test_subquery_expression_simple() {
     let lookup_table_name = &generate_unique_name("test_lookup_table");
 
     println!(
-        "Testing simple subquery expression, ID: {}, database: {}, tables: {}, {}",
-        query_id, database_name, table_name, lookup_table_name
+        "Testing simple subquery expression, ID: {query_id}, database: {database_name}, tables: {table_name}, {lookup_table_name}"
     );
 
     let mut stream = connect_to_server()
@@ -220,7 +214,7 @@ async fn test_subquery_expression_simple() {
 
     // Setup database
     let db_create_query = create_database_create_query(database_name);
-    let db_create_envelope = create_envelope(&format!("{}-db-create", query_id), &db_create_query);
+    let db_create_envelope = create_envelope(&format!("{query_id}-db-create"), &db_create_query);
     send_envelope_to_server(&mut stream, &db_create_envelope)
         .await
         .expect("Failed to create database");
@@ -228,7 +222,7 @@ async fn test_subquery_expression_simple() {
     // Create main table
     let table_create_query = create_table_create_query(database_name, table_name);
     let table_create_envelope =
-        create_envelope(&format!("{}-table-create", query_id), &table_create_query);
+        create_envelope(&format!("{query_id}-table-create"), &table_create_query);
     send_envelope_to_server(&mut stream, &table_create_envelope)
         .await
         .expect("Failed to create main table");
@@ -236,7 +230,7 @@ async fn test_subquery_expression_simple() {
     // Create lookup table
     let lookup_create_query = create_table_create_query(database_name, lookup_table_name);
     let lookup_create_envelope =
-        create_envelope(&format!("{}-lookup-create", query_id), &lookup_create_query);
+        create_envelope(&format!("{query_id}-lookup-create"), &lookup_create_query);
     send_envelope_to_server(&mut stream, &lookup_create_envelope)
         .await
         .expect("Failed to create lookup table");
@@ -262,7 +256,7 @@ async fn test_subquery_expression_simple() {
 
     let main_insert_query = create_insert_query(database_name, table_name, main_documents);
     let main_insert_envelope =
-        create_envelope(&format!("{}-main-insert", query_id), &main_insert_query);
+        create_envelope(&format!("{query_id}-main-insert"), &main_insert_query);
     send_envelope_to_server(&mut stream, &main_insert_envelope)
         .await
         .expect("Failed to insert main documents");
@@ -284,7 +278,7 @@ async fn test_subquery_expression_simple() {
     let lookup_insert_query =
         create_insert_query(database_name, lookup_table_name, lookup_documents);
     let lookup_insert_envelope =
-        create_envelope(&format!("{}-lookup-insert", query_id), &lookup_insert_query);
+        create_envelope(&format!("{query_id}-lookup-insert"), &lookup_insert_query);
     send_envelope_to_server(&mut stream, &lookup_insert_envelope)
         .await
         .expect("Failed to insert lookup documents");
@@ -321,7 +315,7 @@ async fn test_subquery_expression_simple() {
         ),
     );
 
-    let filter_envelope = create_envelope(&format!("{}-filter", query_id), &main_filter);
+    let filter_envelope = create_envelope(&format!("{query_id}-filter"), &main_filter);
     let filter_response = send_envelope_to_server(&mut stream, &filter_envelope)
         .await
         .expect("Failed to send filter envelope");
@@ -341,7 +335,7 @@ async fn test_subquery_expression_simple() {
 
     // Cleanup
     let db_drop_query = create_database_drop_query(database_name);
-    let db_drop_envelope = create_envelope(&format!("{}-db-drop", query_id), &db_drop_query);
+    let db_drop_envelope = create_envelope(&format!("{query_id}-db-drop"), &db_drop_query);
     send_envelope_to_server(&mut stream, &db_drop_envelope)
         .await
         .expect("Failed to drop database");
@@ -358,8 +352,7 @@ async fn test_subquery_expression_nested() {
     let regions_table = &generate_unique_name("test_regions");
 
     println!(
-        "Testing nested subquery expressions, ID: {}, database: {}, tables: {}, {}, {}",
-        query_id, database_name, table_name, categories_table, regions_table
+        "Testing nested subquery expressions, ID: {query_id}, database: {database_name}, tables: {table_name}, {categories_table}, {regions_table}"
     );
 
     let mut stream = connect_to_server()
@@ -368,7 +361,7 @@ async fn test_subquery_expression_nested() {
 
     // Setup database
     let db_create_query = create_database_create_query(database_name);
-    let db_create_envelope = create_envelope(&format!("{}-db-create", query_id), &db_create_query);
+    let db_create_envelope = create_envelope(&format!("{query_id}-db-create"), &db_create_query);
     send_envelope_to_server(&mut stream, &db_create_envelope)
         .await
         .expect("Failed to create database");
@@ -381,10 +374,10 @@ async fn test_subquery_expression_nested() {
     ] {
         let create_query = create_table_create_query(database_name, table);
         let create_envelope =
-            create_envelope(&format!("{}-{}-create", query_id, suffix), &create_query);
+            create_envelope(&format!("{query_id}-{suffix}-create"), &create_query);
         send_envelope_to_server(&mut stream, &create_envelope)
             .await
-            .unwrap_or_else(|_| panic!("Failed to create {} table", suffix));
+            .unwrap_or_else(|_| panic!("Failed to create {suffix} table"));
     }
 
     // Insert test data into regions table
@@ -402,8 +395,7 @@ async fn test_subquery_expression_nested() {
     ];
 
     let regions_insert = create_insert_query(database_name, regions_table, region_documents);
-    let regions_envelope =
-        create_envelope(&format!("{}-regions-insert", query_id), &regions_insert);
+    let regions_envelope = create_envelope(&format!("{query_id}-regions-insert"), &regions_insert);
     send_envelope_to_server(&mut stream, &regions_envelope)
         .await
         .expect("Failed to insert region documents");
@@ -429,10 +421,8 @@ async fn test_subquery_expression_nested() {
 
     let categories_insert =
         create_insert_query(database_name, categories_table, category_documents);
-    let categories_envelope = create_envelope(
-        &format!("{}-categories-insert", query_id),
-        &categories_insert,
-    );
+    let categories_envelope =
+        create_envelope(&format!("{query_id}-categories-insert"), &categories_insert);
     send_envelope_to_server(&mut stream, &categories_envelope)
         .await
         .expect("Failed to insert category documents");
@@ -457,7 +447,7 @@ async fn test_subquery_expression_nested() {
     ];
 
     let main_insert = create_insert_query(database_name, table_name, main_documents);
-    let main_envelope = create_envelope(&format!("{}-main-insert", query_id), &main_insert);
+    let main_envelope = create_envelope(&format!("{query_id}-main-insert"), &main_insert);
     send_envelope_to_server(&mut stream, &main_envelope)
         .await
         .expect("Failed to insert main documents");
@@ -506,7 +496,7 @@ async fn test_subquery_expression_nested() {
         ),
     );
 
-    let filter_envelope = create_envelope(&format!("{}-filter", query_id), &simple_filter);
+    let filter_envelope = create_envelope(&format!("{query_id}-filter"), &simple_filter);
     let filter_response = send_envelope_to_server(&mut stream, &filter_envelope)
         .await
         .expect("Failed to send filter envelope");
@@ -526,7 +516,7 @@ async fn test_subquery_expression_nested() {
 
     // Cleanup
     let db_drop_query = create_database_drop_query(database_name);
-    let db_drop_envelope = create_envelope(&format!("{}-db-drop", query_id), &db_drop_query);
+    let db_drop_envelope = create_envelope(&format!("{query_id}-db-drop"), &db_drop_query);
     send_envelope_to_server(&mut stream, &db_drop_envelope)
         .await
         .expect("Failed to drop database");
@@ -541,8 +531,7 @@ async fn test_expression_combination_all_types() {
     let table_name = &generate_unique_name("test_table_expr_combo");
 
     println!(
-        "Testing combination of all expression types, ID: {}, database: {}, table: {}",
-        query_id, database_name, table_name
+        "Testing combination of all expression types, ID: {query_id}, database: {database_name}, table: {table_name}"
     );
 
     let mut stream = connect_to_server()
@@ -551,14 +540,14 @@ async fn test_expression_combination_all_types() {
 
     // Setup
     let db_create_query = create_database_create_query(database_name);
-    let db_create_envelope = create_envelope(&format!("{}-db-create", query_id), &db_create_query);
+    let db_create_envelope = create_envelope(&format!("{query_id}-db-create"), &db_create_query);
     send_envelope_to_server(&mut stream, &db_create_envelope)
         .await
         .expect("Failed to create database");
 
     let table_create_query = create_table_create_query(database_name, table_name);
     let table_create_envelope =
-        create_envelope(&format!("{}-table-create", query_id), &table_create_query);
+        create_envelope(&format!("{query_id}-table-create"), &table_create_query);
     send_envelope_to_server(&mut stream, &table_create_envelope)
         .await
         .expect("Failed to create table");
@@ -580,7 +569,7 @@ async fn test_expression_combination_all_types() {
     ];
 
     let insert_query = create_insert_query(database_name, table_name, documents);
-    let insert_envelope = create_envelope(&format!("{}-insert", query_id), &insert_query);
+    let insert_envelope = create_envelope(&format!("{query_id}-insert"), &insert_query);
     send_envelope_to_server(&mut stream, &insert_envelope)
         .await
         .expect("Failed to insert documents");
@@ -632,19 +621,19 @@ async fn test_expression_combination_all_types() {
     println!("✓ Complex expression with all types created successfully");
 
     // Test the structure (execution would depend on variable binding)
-    let filter_envelope = create_envelope(&format!("{}-filter", query_id), &filter_query);
+    let filter_envelope = create_envelope(&format!("{query_id}-filter"), &filter_query);
     let filter_response = send_envelope_to_server(&mut stream, &filter_envelope)
         .await
         .expect("Failed to send filter envelope");
 
     // Validate the response structure
-    validate_response_envelope(&filter_response, &format!("{}-filter", query_id))
+    validate_response_envelope(&filter_response, &format!("{query_id}-filter"))
         .expect("Filter response validation failed");
     println!("✓ Complex expression sent to server successfully");
 
     // Cleanup
     let db_drop_query = create_database_drop_query(database_name);
-    let db_drop_envelope = create_envelope(&format!("{}-db-drop", query_id), &db_drop_query);
+    let db_drop_envelope = create_envelope(&format!("{query_id}-db-drop"), &db_drop_query);
     send_envelope_to_server(&mut stream, &db_drop_envelope)
         .await
         .expect("Failed to drop database");

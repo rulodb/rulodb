@@ -7,7 +7,7 @@ use rulodb::ast::proto;
 async fn test_database_list_query() {
     let query_id = "test-db-list-001";
 
-    println!("Testing database list query with ID: {}", query_id);
+    println!("Testing database list query with ID: {query_id}");
 
     // Connect to the running server
     let mut stream = connect_to_server()
@@ -41,7 +41,7 @@ async fn test_database_list_query() {
                     Some(proto::datum::Value::String(name)) => {
                         println!("  Database {}: {}", i + 1, name);
                     }
-                    _ => panic!("Database entry {} should be a string, got: {:?}", i, item),
+                    _ => panic!("Database entry {i} should be a string, got: {item:?}"),
                 }
             }
         }
@@ -61,10 +61,7 @@ async fn test_database_list_query() {
 async fn test_database_list_query_with_timeout() {
     let query_id = "test-db-list-timeout-002";
 
-    println!(
-        "Testing database list query with custom timeout, ID: {}",
-        query_id
-    );
+    println!("Testing database list query with custom timeout, ID: {query_id}");
 
     // Connect to the running server
     let mut stream = connect_to_server()

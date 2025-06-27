@@ -171,7 +171,7 @@ fn test_plan_error_display() {
 #[test]
 fn test_plan_error_debug() {
     let err = PlanError::UnsupportedOperation("test".to_string());
-    let debug_str = format!("{:?}", err);
+    let debug_str = format!("{err:?}");
     assert!(debug_str.contains("UnsupportedOperation"));
 }
 
@@ -379,7 +379,7 @@ fn test_plan_explanation_display() {
     };
 
     let explanation = PlanExplanation::new(&plan);
-    let display = format!("{}", explanation);
+    let display = format!("{explanation}");
 
     assert!(display.contains("Query Plan:"));
     assert!(display.contains("Total Cost:"));

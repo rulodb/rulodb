@@ -10,8 +10,7 @@ async fn test_table_drop_query() {
     let table_name = &generate_unique_name("test_table_drop");
 
     println!(
-        "Testing table drop query with ID: {}, database: {}, table: {}",
-        query_id, database_name, table_name
+        "Testing table drop query with ID: {query_id}, database: {database_name}, table: {table_name}"
     );
 
     // Connect to the running server
@@ -21,13 +20,13 @@ async fn test_table_drop_query() {
 
     // First, create the database
     let db_create_query = create_database_create_query(database_name);
-    let db_create_envelope = create_envelope(&format!("{}-db-create", query_id), &db_create_query);
+    let db_create_envelope = create_envelope(&format!("{query_id}-db-create"), &db_create_query);
 
     let db_create_response = send_envelope_to_server(&mut stream, &db_create_envelope)
         .await
         .expect("Failed to send database create envelope");
 
-    validate_response_envelope(&db_create_response, &format!("{}-db-create", query_id))
+    validate_response_envelope(&db_create_response, &format!("{query_id}-db-create"))
         .expect("Database create response validation failed");
 
     println!("✓ Database created successfully");
@@ -35,17 +34,14 @@ async fn test_table_drop_query() {
     // Then, create the table
     let table_create_query = create_table_create_query(database_name, table_name);
     let table_create_envelope =
-        create_envelope(&format!("{}-table-create", query_id), &table_create_query);
+        create_envelope(&format!("{query_id}-table-create"), &table_create_query);
 
     let table_create_response = send_envelope_to_server(&mut stream, &table_create_envelope)
         .await
         .expect("Failed to send table create envelope");
 
-    validate_response_envelope(
-        &table_create_response,
-        &format!("{}-table-create", query_id),
-    )
-    .expect("Table create response validation failed");
+    validate_response_envelope(&table_create_response, &format!("{query_id}-table-create"))
+        .expect("Table create response validation failed");
 
     println!("✓ Table created successfully");
 
@@ -88,8 +84,7 @@ async fn test_table_drop_with_custom_timeout() {
     let table_name = &generate_unique_name("test_table_drop_timeout");
 
     println!(
-        "Testing table drop with custom timeout, ID: {}, database: {}, table: {}",
-        query_id, database_name, table_name
+        "Testing table drop with custom timeout, ID: {query_id}, database: {database_name}, table: {table_name}"
     );
 
     // Connect to the running server
@@ -99,13 +94,13 @@ async fn test_table_drop_with_custom_timeout() {
 
     // First, create the database
     let db_create_query = create_database_create_query(database_name);
-    let db_create_envelope = create_envelope(&format!("{}-db-create", query_id), &db_create_query);
+    let db_create_envelope = create_envelope(&format!("{query_id}-db-create"), &db_create_query);
 
     let db_create_response = send_envelope_to_server(&mut stream, &db_create_envelope)
         .await
         .expect("Failed to send database create envelope");
 
-    validate_response_envelope(&db_create_response, &format!("{}-db-create", query_id))
+    validate_response_envelope(&db_create_response, &format!("{query_id}-db-create"))
         .expect("Database create response validation failed");
 
     println!("✓ Database created successfully");
@@ -113,17 +108,14 @@ async fn test_table_drop_with_custom_timeout() {
     // Then, create the table
     let table_create_query = create_table_create_query(database_name, table_name);
     let table_create_envelope =
-        create_envelope(&format!("{}-table-create", query_id), &table_create_query);
+        create_envelope(&format!("{query_id}-table-create"), &table_create_query);
 
     let table_create_response = send_envelope_to_server(&mut stream, &table_create_envelope)
         .await
         .expect("Failed to send table create envelope");
 
-    validate_response_envelope(
-        &table_create_response,
-        &format!("{}-table-create", query_id),
-    )
-    .expect("Table create response validation failed");
+    validate_response_envelope(&table_create_response, &format!("{query_id}-table-create"))
+        .expect("Table create response validation failed");
 
     println!("✓ Table created successfully");
 
@@ -173,8 +165,7 @@ async fn test_table_drop_nonexistent() {
     let table_name = &generate_unique_name("test_table_nonexistent");
 
     println!(
-        "Testing drop of nonexistent table, ID: {}, database: {}, table: {}",
-        query_id, database_name, table_name
+        "Testing drop of nonexistent table, ID: {query_id}, database: {database_name}, table: {table_name}"
     );
 
     // Connect to the running server
@@ -184,13 +175,13 @@ async fn test_table_drop_nonexistent() {
 
     // First, create the database (but not the table)
     let db_create_query = create_database_create_query(database_name);
-    let db_create_envelope = create_envelope(&format!("{}-db-create", query_id), &db_create_query);
+    let db_create_envelope = create_envelope(&format!("{query_id}-db-create"), &db_create_query);
 
     let db_create_response = send_envelope_to_server(&mut stream, &db_create_envelope)
         .await
         .expect("Failed to send database create envelope");
 
-    validate_response_envelope(&db_create_response, &format!("{}-db-create", query_id))
+    validate_response_envelope(&db_create_response, &format!("{query_id}-db-create"))
         .expect("Database create response validation failed");
 
     println!("✓ Database created successfully");
@@ -233,10 +224,7 @@ async fn test_table_drop_multiple_tables() {
         generate_unique_name("test_table_drop_multi_003"),
     ];
 
-    println!(
-        "Testing multiple table drops in database: {}",
-        database_name
-    );
+    println!("Testing multiple table drops in database: {database_name}");
 
     // Connect to server and create database first
     let mut stream = connect_to_server()
@@ -246,13 +234,13 @@ async fn test_table_drop_multiple_tables() {
     // Create the database
     let db_create_query = create_database_create_query(database_name);
     let db_create_envelope =
-        create_envelope(&format!("{}-db-create", base_query_id), &db_create_query);
+        create_envelope(&format!("{base_query_id}-db-create"), &db_create_query);
 
     let db_create_response = send_envelope_to_server(&mut stream, &db_create_envelope)
         .await
         .expect("Failed to send database create envelope");
 
-    validate_response_envelope(&db_create_response, &format!("{}-db-create", base_query_id))
+    validate_response_envelope(&db_create_response, &format!("{base_query_id}-db-create"))
         .expect("Database create response validation failed");
 
     println!("✓ Database created successfully");
@@ -275,7 +263,7 @@ async fn test_table_drop_multiple_tables() {
         )
         .expect("Table create response validation failed");
 
-        println!("✓ Table {} created successfully", table_name);
+        println!("✓ Table {table_name} created successfully");
     }
 
     // Now drop all tables
@@ -342,10 +330,7 @@ async fn test_table_create_and_drop_cycle() {
     let database_name = &generate_unique_name("test_db_table_cycle");
     let table_name = &generate_unique_name("test_table_cycle");
 
-    println!(
-        "Testing table create and drop cycle, database: {}, table: {}",
-        database_name, table_name
-    );
+    println!("Testing table create and drop cycle, database: {database_name}, table: {table_name}");
 
     // Connect to the running server
     let mut stream = connect_to_server()
@@ -418,8 +403,7 @@ async fn test_table_drop_and_verify_list() {
     let table_name = &generate_unique_name("test_table_drop_verify");
 
     println!(
-        "Testing table drop and verification via list, database: {}, table: {}",
-        database_name, table_name
+        "Testing table drop and verification via list, database: {database_name}, table: {table_name}"
     );
 
     // Connect to the running server
@@ -495,14 +479,10 @@ async fn test_table_drop_and_verify_list() {
             }
 
             if !found {
-                println!(
-                    "✓ Dropped table '{}' no longer appears in table list",
-                    table_name
-                );
+                println!("✓ Dropped table '{table_name}' no longer appears in table list");
             } else {
                 println!(
-                    "ℹ Dropped table '{}' still appears in list (may not be immediately removed)",
-                    table_name
+                    "ℹ Dropped table '{table_name}' still appears in list (may not be immediately removed)"
                 );
             }
         }
@@ -524,8 +504,7 @@ async fn test_table_drop_without_database() {
     let table_name = &generate_unique_name("test_table_drop_no_db");
 
     println!(
-        "Testing table drop without database, ID: {}, database: {}, table: {}",
-        query_id, database_name, table_name
+        "Testing table drop without database, ID: {query_id}, database: {database_name}, table: {table_name}"
     );
 
     // Connect to the running server
