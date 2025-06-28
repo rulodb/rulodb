@@ -10,8 +10,7 @@ async fn test_pluck_basic() {
     let table_name = &generate_unique_name("test_table_pluck_basic");
 
     println!(
-        "Testing basic pluck operation, ID: {}, database: {}, table: {}",
-        query_id, database_name, table_name
+        "Testing basic pluck operation, ID: {query_id}, database: {database_name}, table: {table_name}"
     );
 
     // Connect to the running server
@@ -21,24 +20,21 @@ async fn test_pluck_basic() {
 
     // Setup: Create database and table
     let db_create_query = create_database_create_query(database_name);
-    let db_create_envelope = create_envelope(&format!("{}-db-create", query_id), &db_create_query);
+    let db_create_envelope = create_envelope(&format!("{query_id}-db-create"), &db_create_query);
     let db_create_response = send_envelope_to_server(&mut stream, &db_create_envelope)
         .await
         .expect("Failed to send database create envelope");
-    validate_response_envelope(&db_create_response, &format!("{}-db-create", query_id))
+    validate_response_envelope(&db_create_response, &format!("{query_id}-db-create"))
         .expect("Database create response validation failed");
 
     let table_create_query = create_table_create_query(database_name, table_name);
     let table_create_envelope =
-        create_envelope(&format!("{}-table-create", query_id), &table_create_query);
+        create_envelope(&format!("{query_id}-table-create"), &table_create_query);
     let table_create_response = send_envelope_to_server(&mut stream, &table_create_envelope)
         .await
         .expect("Failed to send table create envelope");
-    validate_response_envelope(
-        &table_create_response,
-        &format!("{}-table-create", query_id),
-    )
-    .expect("Table create response validation failed");
+    validate_response_envelope(&table_create_response, &format!("{query_id}-table-create"))
+        .expect("Table create response validation failed");
 
     println!("✓ Database and table created successfully");
 
@@ -68,11 +64,11 @@ async fn test_pluck_basic() {
     ];
 
     let insert_query = create_insert_query(database_name, table_name, documents);
-    let insert_envelope = create_envelope(&format!("{}-insert", query_id), &insert_query);
+    let insert_envelope = create_envelope(&format!("{query_id}-insert"), &insert_query);
     let insert_response = send_envelope_to_server(&mut stream, &insert_envelope)
         .await
         .expect("Failed to send insert envelope");
-    validate_response_envelope(&insert_response, &format!("{}-insert", query_id))
+    validate_response_envelope(&insert_response, &format!("{query_id}-insert"))
         .expect("Insert response validation failed");
 
     println!("✓ Test documents inserted successfully");
@@ -93,11 +89,11 @@ async fn test_pluck_basic() {
         ],
     );
 
-    let pluck_envelope = create_envelope(&format!("{}-pluck", query_id), &pluck_query);
+    let pluck_envelope = create_envelope(&format!("{query_id}-pluck"), &pluck_query);
     let pluck_response = send_envelope_to_server(&mut stream, &pluck_envelope)
         .await
         .expect("Failed to send pluck envelope");
-    validate_response_envelope(&pluck_response, &format!("{}-pluck", query_id))
+    validate_response_envelope(&pluck_response, &format!("{query_id}-pluck"))
         .expect("Pluck response validation failed");
 
     let pluck_result =
@@ -112,22 +108,19 @@ async fn test_pluck_basic() {
             if let Some(proto::datum::Value::Object(obj)) = &doc.value {
                 assert!(
                     obj.fields.contains_key("id"),
-                    "Document {} should contain 'id' field",
-                    i
+                    "Document {i} should contain 'id' field"
                 );
                 assert!(
                     obj.fields.contains_key("name"),
-                    "Document {} should contain 'name' field",
-                    i
+                    "Document {i} should contain 'name' field"
                 );
                 assert_eq!(
                     obj.fields.len(),
                     2,
-                    "Document {} should contain only 'id' and 'name' fields",
-                    i
+                    "Document {i} should contain only 'id' and 'name' fields"
                 );
             } else {
-                panic!("Document {} is not an object", i);
+                panic!("Document {i} is not an object");
             }
         }
         println!("✓ All documents contain only the plucked field");
@@ -137,7 +130,7 @@ async fn test_pluck_basic() {
 
     // Cleanup
     let db_drop_query = create_database_drop_query(database_name);
-    let db_drop_envelope = create_envelope(&format!("{}-db-drop", query_id), &db_drop_query);
+    let db_drop_envelope = create_envelope(&format!("{query_id}-db-drop"), &db_drop_query);
     send_envelope_to_server(&mut stream, &db_drop_envelope)
         .await
         .expect("Failed to send database drop envelope");
@@ -152,8 +145,7 @@ async fn test_pluck_multiple_fields() {
     let table_name = &generate_unique_name("test_table_pluck_multiple");
 
     println!(
-        "Testing pluck with multiple fields, ID: {}, database: {}, table: {}",
-        query_id, database_name, table_name
+        "Testing pluck with multiple fields, ID: {query_id}, database: {database_name}, table: {table_name}"
     );
 
     // Connect to the running server
@@ -163,24 +155,21 @@ async fn test_pluck_multiple_fields() {
 
     // Setup: Create database and table
     let db_create_query = create_database_create_query(database_name);
-    let db_create_envelope = create_envelope(&format!("{}-db-create", query_id), &db_create_query);
+    let db_create_envelope = create_envelope(&format!("{query_id}-db-create"), &db_create_query);
     let db_create_response = send_envelope_to_server(&mut stream, &db_create_envelope)
         .await
         .expect("Failed to send database create envelope");
-    validate_response_envelope(&db_create_response, &format!("{}-db-create", query_id))
+    validate_response_envelope(&db_create_response, &format!("{query_id}-db-create"))
         .expect("Database create response validation failed");
 
     let table_create_query = create_table_create_query(database_name, table_name);
     let table_create_envelope =
-        create_envelope(&format!("{}-table-create", query_id), &table_create_query);
+        create_envelope(&format!("{query_id}-table-create"), &table_create_query);
     let table_create_response = send_envelope_to_server(&mut stream, &table_create_envelope)
         .await
         .expect("Failed to send table create envelope");
-    validate_response_envelope(
-        &table_create_response,
-        &format!("{}-table-create", query_id),
-    )
-    .expect("Table create response validation failed");
+    validate_response_envelope(&table_create_response, &format!("{query_id}-table-create"))
+        .expect("Table create response validation failed");
 
     println!("✓ Database and table created successfully");
 
@@ -203,11 +192,11 @@ async fn test_pluck_multiple_fields() {
     ];
 
     let insert_query = create_insert_query(database_name, table_name, documents);
-    let insert_envelope = create_envelope(&format!("{}-insert", query_id), &insert_query);
+    let insert_envelope = create_envelope(&format!("{query_id}-insert"), &insert_query);
     let insert_response = send_envelope_to_server(&mut stream, &insert_envelope)
         .await
         .expect("Failed to send insert envelope");
-    validate_response_envelope(&insert_response, &format!("{}-insert", query_id))
+    validate_response_envelope(&insert_response, &format!("{query_id}-insert"))
         .expect("Insert response validation failed");
 
     println!("✓ Test documents inserted successfully");
@@ -232,11 +221,11 @@ async fn test_pluck_multiple_fields() {
         ],
     );
 
-    let pluck_envelope = create_envelope(&format!("{}-pluck", query_id), &pluck_query);
+    let pluck_envelope = create_envelope(&format!("{query_id}-pluck"), &pluck_query);
     let pluck_response = send_envelope_to_server(&mut stream, &pluck_envelope)
         .await
         .expect("Failed to send pluck envelope");
-    validate_response_envelope(&pluck_response, &format!("{}-pluck", query_id))
+    validate_response_envelope(&pluck_response, &format!("{query_id}-pluck"))
         .expect("Pluck response validation failed");
 
     let pluck_result =
@@ -251,27 +240,23 @@ async fn test_pluck_multiple_fields() {
             if let Some(proto::datum::Value::Object(obj)) = &doc.value {
                 assert!(
                     obj.fields.contains_key("id"),
-                    "Document {} should contain 'id' field",
-                    i
+                    "Document {i} should contain 'id' field"
                 );
                 assert!(
                     obj.fields.contains_key("name"),
-                    "Document {} should contain 'name' field",
-                    i
+                    "Document {i} should contain 'name' field"
                 );
                 assert!(
                     obj.fields.contains_key("email"),
-                    "Document {} should contain 'email' field",
-                    i
+                    "Document {i} should contain 'email' field"
                 );
                 assert_eq!(
                     obj.fields.len(),
                     3,
-                    "Document {} should contain only 'id', 'name' and 'email' fields",
-                    i
+                    "Document {i} should contain only 'id', 'name' and 'email' fields"
                 );
             } else {
-                panic!("Document {} is not an object", i);
+                panic!("Document {i} is not an object");
             }
         }
         println!("✓ All documents contain only the plucked fields");
@@ -281,7 +266,7 @@ async fn test_pluck_multiple_fields() {
 
     // Cleanup
     let db_drop_query = create_database_drop_query(database_name);
-    let db_drop_envelope = create_envelope(&format!("{}-db-drop", query_id), &db_drop_query);
+    let db_drop_envelope = create_envelope(&format!("{query_id}-db-drop"), &db_drop_query);
     send_envelope_to_server(&mut stream, &db_drop_envelope)
         .await
         .expect("Failed to send database drop envelope");
@@ -296,8 +281,7 @@ async fn test_pluck_nested_fields() {
     let table_name = &generate_unique_name("test_table_pluck_nested");
 
     println!(
-        "Testing pluck with nested fields, ID: {}, database: {}, table: {}",
-        query_id, database_name, table_name
+        "Testing pluck with nested fields, ID: {query_id}, database: {database_name}, table: {table_name}"
     );
 
     // Connect to the running server
@@ -307,24 +291,21 @@ async fn test_pluck_nested_fields() {
 
     // Setup: Create database and table
     let db_create_query = create_database_create_query(database_name);
-    let db_create_envelope = create_envelope(&format!("{}-db-create", query_id), &db_create_query);
+    let db_create_envelope = create_envelope(&format!("{query_id}-db-create"), &db_create_query);
     let db_create_response = send_envelope_to_server(&mut stream, &db_create_envelope)
         .await
         .expect("Failed to send database create envelope");
-    validate_response_envelope(&db_create_response, &format!("{}-db-create", query_id))
+    validate_response_envelope(&db_create_response, &format!("{query_id}-db-create"))
         .expect("Database create response validation failed");
 
     let table_create_query = create_table_create_query(database_name, table_name);
     let table_create_envelope =
-        create_envelope(&format!("{}-table-create", query_id), &table_create_query);
+        create_envelope(&format!("{query_id}-table-create"), &table_create_query);
     let table_create_response = send_envelope_to_server(&mut stream, &table_create_envelope)
         .await
         .expect("Failed to send table create envelope");
-    validate_response_envelope(
-        &table_create_response,
-        &format!("{}-table-create", query_id),
-    )
-    .expect("Table create response validation failed");
+    validate_response_envelope(&table_create_response, &format!("{query_id}-table-create"))
+        .expect("Table create response validation failed");
 
     println!("✓ Database and table created successfully");
 
@@ -379,11 +360,11 @@ async fn test_pluck_nested_fields() {
     ];
 
     let insert_query = create_insert_query(database_name, table_name, documents);
-    let insert_envelope = create_envelope(&format!("{}-insert", query_id), &insert_query);
+    let insert_envelope = create_envelope(&format!("{query_id}-insert"), &insert_query);
     let insert_response = send_envelope_to_server(&mut stream, &insert_envelope)
         .await
         .expect("Failed to send insert envelope");
-    validate_response_envelope(&insert_response, &format!("{}-insert", query_id))
+    validate_response_envelope(&insert_response, &format!("{query_id}-insert"))
         .expect("Insert response validation failed");
 
     println!("✓ Test documents inserted successfully");
@@ -408,11 +389,11 @@ async fn test_pluck_nested_fields() {
         ],
     );
 
-    let pluck_envelope = create_envelope(&format!("{}-pluck", query_id), &pluck_query);
+    let pluck_envelope = create_envelope(&format!("{query_id}-pluck"), &pluck_query);
     let pluck_response = send_envelope_to_server(&mut stream, &pluck_envelope)
         .await
         .expect("Failed to send pluck envelope");
-    validate_response_envelope(&pluck_response, &format!("{}-pluck", query_id))
+    validate_response_envelope(&pluck_response, &format!("{query_id}-pluck"))
         .expect("Pluck response validation failed");
 
     let pluck_result =
@@ -427,27 +408,23 @@ async fn test_pluck_nested_fields() {
             if let Some(proto::datum::Value::Object(obj)) = &doc.value {
                 assert!(
                     obj.fields.contains_key("id"),
-                    "Document {} should contain 'id' field",
-                    i
+                    "Document {i} should contain 'id' field"
                 );
                 assert!(
                     obj.fields.contains_key("name"),
-                    "Document {} should contain 'name' field",
-                    i
+                    "Document {i} should contain 'name' field"
                 );
                 assert!(
                     obj.fields.contains_key("profile.bio"),
-                    "Document {} should contain 'profile.bio' field",
-                    i
+                    "Document {i} should contain 'profile.bio' field"
                 );
                 assert_eq!(
                     obj.fields.len(),
                     3,
-                    "Document {} should contain only 'id', 'name' and 'profile.bio' fields",
-                    i
+                    "Document {i} should contain only 'id', 'name' and 'profile.bio' fields"
                 );
             } else {
-                panic!("Document {} is not an object", i);
+                panic!("Document {i} is not an object");
             }
         }
         println!("✓ All documents contain the expected nested fields");
@@ -457,7 +434,7 @@ async fn test_pluck_nested_fields() {
 
     // Cleanup
     let db_drop_query = create_database_drop_query(database_name);
-    let db_drop_envelope = create_envelope(&format!("{}-db-drop", query_id), &db_drop_query);
+    let db_drop_envelope = create_envelope(&format!("{query_id}-db-drop"), &db_drop_query);
     send_envelope_to_server(&mut stream, &db_drop_envelope)
         .await
         .expect("Failed to send database drop envelope");
@@ -472,8 +449,7 @@ async fn test_pluck_custom_separator() {
     let table_name = &generate_unique_name("test_table_pluck_separator");
 
     println!(
-        "Testing pluck with custom separator, ID: {}, database: {}, table: {}",
-        query_id, database_name, table_name
+        "Testing pluck with custom separator, ID: {query_id}, database: {database_name}, table: {table_name}"
     );
 
     // Connect to the running server
@@ -483,24 +459,21 @@ async fn test_pluck_custom_separator() {
 
     // Setup: Create database and table
     let db_create_query = create_database_create_query(database_name);
-    let db_create_envelope = create_envelope(&format!("{}-db-create", query_id), &db_create_query);
+    let db_create_envelope = create_envelope(&format!("{query_id}-db-create"), &db_create_query);
     let db_create_response = send_envelope_to_server(&mut stream, &db_create_envelope)
         .await
         .expect("Failed to send database create envelope");
-    validate_response_envelope(&db_create_response, &format!("{}-db-create", query_id))
+    validate_response_envelope(&db_create_response, &format!("{query_id}-db-create"))
         .expect("Database create response validation failed");
 
     let table_create_query = create_table_create_query(database_name, table_name);
     let table_create_envelope =
-        create_envelope(&format!("{}-table-create", query_id), &table_create_query);
+        create_envelope(&format!("{query_id}-table-create"), &table_create_query);
     let table_create_response = send_envelope_to_server(&mut stream, &table_create_envelope)
         .await
         .expect("Failed to send table create envelope");
-    validate_response_envelope(
-        &table_create_response,
-        &format!("{}-table-create", query_id),
-    )
-    .expect("Table create response validation failed");
+    validate_response_envelope(&table_create_response, &format!("{query_id}-table-create"))
+        .expect("Table create response validation failed");
 
     println!("✓ Database and table created successfully");
 
@@ -530,11 +503,11 @@ async fn test_pluck_custom_separator() {
     ];
 
     let insert_query = create_insert_query(database_name, table_name, documents);
-    let insert_envelope = create_envelope(&format!("{}-insert", query_id), &insert_query);
+    let insert_envelope = create_envelope(&format!("{query_id}-insert"), &insert_query);
     let insert_response = send_envelope_to_server(&mut stream, &insert_envelope)
         .await
         .expect("Failed to send insert envelope");
-    validate_response_envelope(&insert_response, &format!("{}-insert", query_id))
+    validate_response_envelope(&insert_response, &format!("{query_id}-insert"))
         .expect("Insert response validation failed");
 
     println!("✓ Test documents inserted successfully");
@@ -559,11 +532,11 @@ async fn test_pluck_custom_separator() {
         ],
     );
 
-    let pluck_envelope = create_envelope(&format!("{}-pluck", query_id), &pluck_query);
+    let pluck_envelope = create_envelope(&format!("{query_id}-pluck"), &pluck_query);
     let pluck_response = send_envelope_to_server(&mut stream, &pluck_envelope)
         .await
         .expect("Failed to send pluck envelope");
-    validate_response_envelope(&pluck_response, &format!("{}-pluck", query_id))
+    validate_response_envelope(&pluck_response, &format!("{query_id}-pluck"))
         .expect("Pluck response validation failed");
 
     let pluck_result =
@@ -578,27 +551,23 @@ async fn test_pluck_custom_separator() {
             if let Some(proto::datum::Value::Object(obj)) = &doc.value {
                 assert!(
                     obj.fields.contains_key("id"),
-                    "Document {} should contain 'id' field",
-                    i
+                    "Document {i} should contain 'id' field"
                 );
                 assert!(
                     obj.fields.contains_key("name"),
-                    "Document {} should contain 'name' field",
-                    i
+                    "Document {i} should contain 'name' field"
                 );
                 assert!(
                     obj.fields.contains_key("user::profile::bio"),
-                    "Document {} should contain 'user::profile::bio' field",
-                    i
+                    "Document {i} should contain 'user::profile::bio' field"
                 );
                 assert_eq!(
                     obj.fields.len(),
                     3,
-                    "Document {} should contain only 'id', 'name' and 'user::profile::bio' fields",
-                    i
+                    "Document {i} should contain only 'id', 'name' and 'user::profile::bio' fields"
                 );
             } else {
-                panic!("Document {} is not an object", i);
+                panic!("Document {i} is not an object");
             }
         }
         println!("✓ All documents contain the expected fields with custom separator");
@@ -608,7 +577,7 @@ async fn test_pluck_custom_separator() {
 
     // Cleanup
     let db_drop_query = create_database_drop_query(database_name);
-    let db_drop_envelope = create_envelope(&format!("{}-db-drop", query_id), &db_drop_query);
+    let db_drop_envelope = create_envelope(&format!("{query_id}-db-drop"), &db_drop_query);
     send_envelope_to_server(&mut stream, &db_drop_envelope)
         .await
         .expect("Failed to send database drop envelope");
@@ -623,8 +592,7 @@ async fn test_pluck_empty_table() {
     let table_name = &generate_unique_name("test_table_pluck_empty");
 
     println!(
-        "Testing pluck on empty table, ID: {}, database: {}, table: {}",
-        query_id, database_name, table_name
+        "Testing pluck on empty table, ID: {query_id}, database: {database_name}, table: {table_name}"
     );
 
     // Connect to the running server
@@ -634,24 +602,21 @@ async fn test_pluck_empty_table() {
 
     // Setup: Create database and table
     let db_create_query = create_database_create_query(database_name);
-    let db_create_envelope = create_envelope(&format!("{}-db-create", query_id), &db_create_query);
+    let db_create_envelope = create_envelope(&format!("{query_id}-db-create"), &db_create_query);
     let db_create_response = send_envelope_to_server(&mut stream, &db_create_envelope)
         .await
         .expect("Failed to send database create envelope");
-    validate_response_envelope(&db_create_response, &format!("{}-db-create", query_id))
+    validate_response_envelope(&db_create_response, &format!("{query_id}-db-create"))
         .expect("Database create response validation failed");
 
     let table_create_query = create_table_create_query(database_name, table_name);
     let table_create_envelope =
-        create_envelope(&format!("{}-table-create", query_id), &table_create_query);
+        create_envelope(&format!("{query_id}-table-create"), &table_create_query);
     let table_create_response = send_envelope_to_server(&mut stream, &table_create_envelope)
         .await
         .expect("Failed to send table create envelope");
-    validate_response_envelope(
-        &table_create_response,
-        &format!("{}-table-create", query_id),
-    )
-    .expect("Table create response validation failed");
+    validate_response_envelope(&table_create_response, &format!("{query_id}-table-create"))
+        .expect("Table create response validation failed");
 
     println!("✓ Database and table created successfully");
 
@@ -671,11 +636,11 @@ async fn test_pluck_empty_table() {
         ],
     );
 
-    let pluck_envelope = create_envelope(&format!("{}-pluck", query_id), &pluck_query);
+    let pluck_envelope = create_envelope(&format!("{query_id}-pluck"), &pluck_query);
     let pluck_response = send_envelope_to_server(&mut stream, &pluck_envelope)
         .await
         .expect("Failed to send pluck envelope");
-    validate_response_envelope(&pluck_response, &format!("{}-pluck", query_id))
+    validate_response_envelope(&pluck_response, &format!("{query_id}-pluck"))
         .expect("Pluck response validation failed");
 
     let pluck_result =
@@ -697,7 +662,7 @@ async fn test_pluck_empty_table() {
 
     // Cleanup
     let db_drop_query = create_database_drop_query(database_name);
-    let db_drop_envelope = create_envelope(&format!("{}-db-drop", query_id), &db_drop_query);
+    let db_drop_envelope = create_envelope(&format!("{query_id}-db-drop"), &db_drop_query);
     send_envelope_to_server(&mut stream, &db_drop_envelope)
         .await
         .expect("Failed to send database drop envelope");
