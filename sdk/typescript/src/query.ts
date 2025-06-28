@@ -460,6 +460,63 @@ export class RQuery<
     );
   }
 
+  /**
+   * Filter out specific fields from documents (available on TableQuery and StreamQuery)
+   */
+  without<TResult = TDoc, K extends NestedKeyOf<TResult> = NestedKeyOf<TResult>>(
+    this: RQuery<TableQuery<TDoc> | StreamQuery<TDoc>, TDbName, TDoc>,
+    ...fields: K[]
+  ): RQuery<StreamQuery<TResult>, TDbName, TResult>;
+  without<TResult = TDoc, K extends NestedKeyOf<TResult> = NestedKeyOf<TResult>>(
+    this: RQuery<TableQuery<TDoc> | StreamQuery<TDoc>, TDbName, TDoc>,
+    fields: K[]
+  ): RQuery<StreamQuery<TResult>, TDbName, TResult>;
+  without<TResult = TDoc, K extends NestedKeyOf<TResult> = NestedKeyOf<TResult>>(
+    this: RQuery<TableQuery<TDoc> | StreamQuery<TDoc>, TDbName, TDoc>,
+    fields: K[],
+    options: { separator?: string }
+  ): RQuery<StreamQuery<TResult>, TDbName, TResult>;
+  without<TResult = TDoc, K extends NestedKeyOf<TResult> = NestedKeyOf<TResult>>(
+    fieldsOrFirst: K[] | K,
+    ...args: unknown[]
+  ): RQuery<StreamQuery<TResult>, TDbName, TResult> {
+    let fields: string[];
+    let separator = '.';
+
+    if (Array.isArray(fieldsOrFirst)) {
+      fields = fieldsOrFirst;
+      if (
+        args.length > 0 &&
+        typeof args[0] === 'object' &&
+        args[0] !== null &&
+        !Array.isArray(args[0])
+      ) {
+        separator = (args[0] as { separator?: string }).separator || '.';
+      }
+    } else {
+      fields = [fieldsOrFirst, ...(args as K[])];
+    }
+
+    const fieldRefs = fields.map((field) => ({
+      path: String(field).split(separator),
+      separator
+    }));
+
+    const query: Query = {
+      without: {
+        source: this._query,
+        fields: fieldRefs
+      }
+    };
+
+    // Always return stream query type - the actual behavior is handled at runtime by the backend
+    return new RQuery<StreamQuery<TResult>, TDbName, TResult>(
+      query,
+      { _type: 'stream', _docType: undefined as TResult },
+      this._dbName
+    );
+  }
+
   // ========== Modification Operations ==========
 
   /**

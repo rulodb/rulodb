@@ -350,6 +350,18 @@ impl Evaluator {
                     .await
             }
 
+            PlanNode::Without { source, fields, .. } => {
+                let source_result = Box::pin(self.execute_plan(source)).await?;
+                self.query_processor
+                    .without_documents_streaming(
+                        source_result,
+                        self.cursor_context.clone(),
+                        fields,
+                        &mut self.stats,
+                    )
+                    .await
+            }
+
             // Subqueries
             PlanNode::Subquery { query, .. } => Box::pin(self.execute_plan(query)).await,
         }

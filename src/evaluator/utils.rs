@@ -1,4 +1,4 @@
-use crate::ast::{Datum, FieldRef, datum, query_result};
+use crate::ast::{Datum, DatumObject, Document, FieldRef, datum, query_result};
 use crate::evaluator::error::EvalError;
 
 /// Extract a field value from a datum using field name
@@ -28,6 +28,80 @@ pub fn extract_field_from_ref(datum: &Datum, field_ref: &FieldRef) -> Datum {
     }
 
     result
+}
+
+/// Exclude fields from an DatumObject based on field references
+pub fn exclude_field_refs(
+    datum: &Datum,
+    field_refs: &[FieldRef],
+    output: &mut Document,
+    path: Vec<String>,
+) {
+    let obj = match &datum.value {
+        Some(datum::Value::Object(obj)) => obj,
+        _ => return,
+    };
+
+    for (key, value) in &obj.fields {
+        let mut path = path.clone();
+        path.push(key.clone());
+
+        // Check if the current path matches any field ref
+        let should_exclude = field_refs.iter().any(|fr| fr.path == path);
+
+        if should_exclude {
+            continue;
+        }
+
+        if matches!(value.value, Some(datum::Value::Object(_))) {
+            let mut nested = Document::new();
+            exclude_field_refs(value, field_refs, &mut nested, path);
+            output.insert(key.clone(), nested.into());
+        } else {
+            output.insert(key.clone(), value.clone());
+        }
+    }
+}
+
+/// Insert a field into a document by reference, preserving nested structure.
+pub fn insert_field_by_ref(doc: &mut Document, field_ref: &FieldRef, value: Datum) {
+    let mut current = doc;
+
+    for (i, key) in field_ref.path.iter().enumerate() {
+        if i == field_ref.path.len() - 1 {
+            current.insert(key.clone(), value);
+            return;
+        }
+
+        // Ensure there's an object at this level
+        let is_object = matches!(
+            current.get_mut(key),
+            Some(Datum {
+                value: Some(datum::Value::Object(_)),
+                ..
+            })
+        );
+
+        if !is_object {
+            current.insert(
+                key.clone(),
+                Datum {
+                    value: Some(datum::Value::Object(DatumObject {
+                        fields: Document::new(),
+                    })),
+                },
+            );
+        }
+
+        // Safe to unwrap as we just inserted if it didn't exist
+        current = match current.get_mut(key) {
+            Some(Datum {
+                value: Some(datum::Value::Object(obj)),
+                ..
+            }) => &mut obj.fields,
+            _ => unreachable!("Should always be an object here"),
+        };
+    }
 }
 
 /// Compare two datum values with proper type handling

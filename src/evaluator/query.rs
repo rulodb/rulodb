@@ -1,17 +1,18 @@
 use crate::ast::{
-    CountResult, Cursor, Datum, DeleteResult, Document, Expression, FieldRef, FilterResult,
-    LimitResult, OrderByField, OrderByResult, PluckCollectionResult, PluckResult, SkipResult,
-    UpdateResult, proto, query_result,
+    CollectionResult, CountResult, Cursor, Datum, DeleteResult, Document, Expression, FieldRef,
+    FilterResult, LimitResult, OrderByField, OrderByResult, PluckResult, SkipResult, UpdateResult,
+    WithoutResult, proto, query_result,
 };
 use crate::evaluator::error::{EvalError, EvalStats};
 use crate::evaluator::expression::ExpressionEvaluator;
 use crate::evaluator::utils::{
-    compare_values, datum_to_bool, extract_document_key, extract_field_from_ref,
-    extract_field_value, is_single_doc_source,
+    compare_values, datum_to_bool, exclude_field_refs, extract_document_key,
+    extract_field_from_ref, extract_field_value, insert_field_by_ref, is_single_doc_source,
 };
 use crate::planner::PlanNode;
 use crate::storage::StorageBackend;
 
+use crate::DatumObject;
 use std::sync::Arc;
 
 /// Handler for query processing operations like filtering, sorting, and streaming
@@ -198,49 +199,94 @@ impl QueryProcessor {
         stats: &mut EvalStats,
     ) -> Result<query_result::Result, EvalError> {
         let is_single_source = is_single_doc_source(&source_result);
-        let documents = self.extract_documents_from_result(source_result)?;
 
-        let plucked_docs: Vec<Datum> = documents
+        let docs: Vec<Datum> = self
+            .extract_documents_from_result(source_result)?
             .into_iter()
             .map(|doc| {
-                field_refs
-                    .iter()
-                    .map(|field_ref| {
-                        (
-                            field_ref.to_string(),
-                            extract_field_from_ref(&doc, field_ref),
-                        )
-                    })
-                    .collect::<Document>()
-                    .into()
+                let mut output = Document::new();
+                for field_ref in field_refs {
+                    let value = extract_field_from_ref(&doc, field_ref);
+                    insert_field_by_ref(&mut output, field_ref, value);
+                }
+                output.into()
             })
             .collect();
 
-        let doc_count = plucked_docs.len();
+        let doc_count = docs.len();
         stats.record_rows_processed(doc_count);
         stats.record_rows_returned(doc_count);
 
-        // Return single document if source was a single-document operation
-        if is_single_source && plucked_docs.len() == 1 {
+        // Return a single document if the source was a single-document operation
+        if is_single_source && doc_count == 1 {
             Ok(query_result::Result::Pluck(PluckResult {
                 result: Some(proto::pluck_result::Result::Document(
-                    plucked_docs.into_iter().next().unwrap(),
+                    docs.into_iter().next().unwrap(),
                 )),
             }))
         } else {
             // Return collection for multi-document sources
-            let last_key = plucked_docs
+            let last_key = docs
                 .last()
                 .map(|doc| self.extract_document_key(doc))
                 .transpose()
                 .unwrap_or(None);
 
-            let next_cursor = Cursor::from_previous(cursor, last_key, &plucked_docs);
+            let next_cursor = Cursor::from_previous(cursor, last_key, &docs);
 
             Ok(query_result::Result::Pluck(PluckResult {
-                result: Some(proto::pluck_result::Result::Collection(
-                    PluckCollectionResult {
-                        documents: plucked_docs,
+                result: Some(proto::pluck_result::Result::Collection(CollectionResult {
+                    documents: docs,
+                    cursor: next_cursor,
+                })),
+            }))
+        }
+    }
+
+    pub async fn without_documents_streaming(
+        &self,
+        source_result: query_result::Result,
+        cursor: Option<Cursor>,
+        field_refs: &[FieldRef],
+        stats: &mut EvalStats,
+    ) -> Result<query_result::Result, EvalError> {
+        let is_single_source = is_single_doc_source(&source_result);
+
+        let docs: Vec<Datum> = self
+            .extract_documents_from_result(source_result)?
+            .into_iter()
+            .map(|doc| {
+                let mut result = Document::new();
+                exclude_field_refs(&doc, field_refs, &mut result, vec![]);
+                result.into()
+            })
+            .collect();
+
+        let doc_count = docs.len();
+        stats.record_rows_processed(doc_count);
+        stats.record_rows_returned(doc_count);
+
+        // Return a single document if the source was a single-document operation
+        if is_single_source && doc_count == 1 {
+            Ok(query_result::Result::Without(WithoutResult {
+                result: Some(proto::without_result::Result::Document(
+                    docs.into_iter().next().unwrap(),
+                )),
+            }))
+        } else {
+            // Return collection for multi-document sources
+            let last_key = docs
+                .last()
+                .map(|doc| self.extract_document_key(doc))
+                .transpose()
+                .unwrap_or(None);
+
+            let next_cursor = Cursor::from_previous(cursor, last_key, &docs);
+
+            Ok(query_result::Result::Without(WithoutResult {
+                result: Some(proto::without_result::Result::Collection(
+                    CollectionResult {
+                        documents: docs,
                         cursor: next_cursor,
                     },
                 )),
@@ -252,7 +298,7 @@ impl QueryProcessor {
     pub async fn update_documents(
         &self,
         source_result: query_result::Result,
-        patch: &crate::ast::DatumObject,
+        patch: &DatumObject,
         source_plan: &PlanNode,
         stats: &mut EvalStats,
     ) -> Result<query_result::Result, EvalError> {
@@ -321,7 +367,7 @@ impl QueryProcessor {
     fn apply_patch_to_document(
         &self,
         doc: &Datum,
-        patch: &crate::ast::DatumObject,
+        patch: &DatumObject,
     ) -> Result<Datum, EvalError> {
         if let Some(crate::ast::datum::Value::Object(obj)) = &doc.value {
             let mut updated_fields = obj.fields.clone();
@@ -377,7 +423,8 @@ impl QueryProcessor {
             | PlanNode::Limit { source, .. }
             | PlanNode::Skip { source, .. }
             | PlanNode::Count { source, .. }
-            | PlanNode::Pluck { source, .. } => self.extract_table_context(source),
+            | PlanNode::Pluck { source, .. }
+            | PlanNode::Without { source, .. } => self.extract_table_context(source),
             _ => Err(EvalError::InvalidExpression),
         }
     }
