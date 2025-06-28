@@ -397,6 +397,13 @@ message SkipResult {
 message CountResult { uint64 count = 1; }
 
 message PluckResult {
+  oneof result {
+    Datum document = 1; // Single document result (from get-like sources)
+    PluckCollectionResult collection = 2; // Multiple documents result
+  }
+}
+
+message PluckCollectionResult {
   repeated Datum documents = 1;
   Cursor cursor = 2;
 }

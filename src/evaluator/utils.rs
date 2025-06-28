@@ -1,4 +1,4 @@
-use crate::ast::{Datum, FieldRef, datum};
+use crate::ast::{Datum, FieldRef, datum, query_result};
 use crate::evaluator::error::EvalError;
 
 /// Extract a field value from a datum using field name
@@ -107,4 +107,8 @@ pub fn bool_datum(b: bool) -> Datum {
     Datum {
         value: Some(datum::Value::Bool(b)),
     }
+}
+
+pub fn is_single_doc_source(source_result: &query_result::Result) -> bool {
+    matches!(source_result, query_result::Result::Get(_))
 }

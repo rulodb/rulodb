@@ -221,12 +221,25 @@ pub fn decode_response_payload(
                             element_type: String::new(),
                         })),
                     }),
-                    Some(proto::query_result::Result::Pluck(pluck_result)) => Ok(proto::Datum {
-                        value: Some(proto::datum::Value::Array(proto::DatumArray {
-                            items: pluck_result.documents,
-                            element_type: String::new(),
-                        })),
-                    }),
+                    Some(proto::query_result::Result::Pluck(pluck_result)) => {
+                        match &pluck_result.result {
+                            Some(proto::pluck_result::Result::Document(doc)) => Ok(doc.clone()),
+                            Some(proto::pluck_result::Result::Collection(collection)) => {
+                                Ok(proto::Datum {
+                                    value: Some(proto::datum::Value::Array(proto::DatumArray {
+                                        items: collection.documents.clone(),
+                                        element_type: String::new(),
+                                    })),
+                                })
+                            }
+                            None => Ok(proto::Datum {
+                                value: Some(proto::datum::Value::Array(proto::DatumArray {
+                                    items: vec![],
+                                    element_type: String::new(),
+                                })),
+                            }),
+                        }
+                    }
                     Some(proto::query_result::Result::Count(count_result)) => Ok(proto::Datum {
                         value: Some(proto::datum::Value::Int(count_result.count as i64)),
                     }),

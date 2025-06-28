@@ -1,20 +1,18 @@
 use crate::ast::{
     CountResult, Cursor, Datum, DeleteResult, Document, Expression, FieldRef, FilterResult,
-    LimitResult, OrderByField, OrderByResult, PluckResult, SkipResult, UpdateResult, query_result,
+    LimitResult, OrderByField, OrderByResult, PluckCollectionResult, PluckResult, SkipResult,
+    UpdateResult, proto, query_result,
 };
 use crate::evaluator::error::{EvalError, EvalStats};
 use crate::evaluator::expression::ExpressionEvaluator;
 use crate::evaluator::utils::{
     compare_values, datum_to_bool, extract_document_key, extract_field_from_ref,
-    extract_field_value,
+    extract_field_value, is_single_doc_source,
 };
 use crate::planner::PlanNode;
 use crate::storage::StorageBackend;
-use futures_util::{Stream, StreamExt, stream};
-use std::sync::Arc;
 
-pub type StreamingResult =
-    std::pin::Pin<Box<dyn Stream<Item = Result<Datum, crate::storage::StorageError>> + Send>>;
+use std::sync::Arc;
 
 /// Handler for query processing operations like filtering, sorting, and streaming
 pub struct QueryProcessor {
@@ -177,28 +175,17 @@ impl QueryProcessor {
         }))
     }
 
-    /// Count documents (streaming version)
-    pub async fn count_documents_streaming(
+    /// Count documents from a result
+    pub async fn count_documents(
         &self,
-        source: &PlanNode,
+        source_result: query_result::Result,
         stats: &mut EvalStats,
     ) -> Result<query_result::Result, EvalError> {
-        let mut count = 0;
-        let mut processed = 0;
+        let documents = self.extract_documents_from_result(source_result)?;
+        let count = documents.len() as u64;
 
-        // Create a stream from the source plan
-        let mut stream = self.create_document_stream(source, None).await?;
-
-        while let Some(doc_result) = stream.next().await {
-            processed += 1;
-            match doc_result {
-                Ok(_) => count += 1,
-                Err(e) => return Err(EvalError::StorageError(e)),
-            }
-        }
-
-        stats.record_rows_processed(processed);
-        stats.record_rows_returned(1); // Count result is always 1 row
+        stats.record_rows_processed(documents.len());
+        stats.record_rows_returned(1);
 
         Ok(query_result::Result::Count(CountResult { count }))
     }
@@ -210,6 +197,7 @@ impl QueryProcessor {
         field_refs: &[FieldRef],
         stats: &mut EvalStats,
     ) -> Result<query_result::Result, EvalError> {
+        let is_single_source = is_single_doc_source(&source_result);
         let documents = self.extract_documents_from_result(source_result)?;
 
         let plucked_docs: Vec<Datum> = documents
@@ -232,18 +220,32 @@ impl QueryProcessor {
         stats.record_rows_processed(doc_count);
         stats.record_rows_returned(doc_count);
 
-        let last_key = plucked_docs
-            .last()
-            .map(|doc| self.extract_document_key(doc))
-            .transpose()
-            .unwrap_or(None);
+        // Return single document if source was a single-document operation
+        if is_single_source && plucked_docs.len() == 1 {
+            Ok(query_result::Result::Pluck(PluckResult {
+                result: Some(proto::pluck_result::Result::Document(
+                    plucked_docs.into_iter().next().unwrap(),
+                )),
+            }))
+        } else {
+            // Return collection for multi-document sources
+            let last_key = plucked_docs
+                .last()
+                .map(|doc| self.extract_document_key(doc))
+                .transpose()
+                .unwrap_or(None);
 
-        let next_cursor = Cursor::from_previous(cursor, last_key, &plucked_docs);
+            let next_cursor = Cursor::from_previous(cursor, last_key, &plucked_docs);
 
-        Ok(query_result::Result::Pluck(PluckResult {
-            documents: plucked_docs,
-            cursor: next_cursor,
-        }))
+            Ok(query_result::Result::Pluck(PluckResult {
+                result: Some(proto::pluck_result::Result::Collection(
+                    PluckCollectionResult {
+                        documents: plucked_docs,
+                        cursor: next_cursor,
+                    },
+                )),
+            }))
+        }
     }
 
     /// Update documents based on a patch
@@ -377,128 +379,6 @@ impl QueryProcessor {
             | PlanNode::Count { source, .. }
             | PlanNode::Pluck { source, .. } => self.extract_table_context(source),
             _ => Err(EvalError::InvalidExpression),
-        }
-    }
-
-    /// Create a document stream from a plan node
-    async fn create_document_stream(
-        &self,
-        plan: &PlanNode,
-        cursor_override: Option<&Cursor>,
-    ) -> Result<StreamingResult, EvalError> {
-        match plan {
-            PlanNode::TableScan {
-                table_ref,
-                cursor: plan_cursor,
-                ..
-            } => {
-                let database = table_ref
-                    .database
-                    .as_ref()
-                    .map(|d| d.name.clone())
-                    .unwrap_or_else(|| crate::storage::DEFAULT_DATABASE.to_string());
-
-                let storage = self.storage.clone();
-                let table_name = table_ref.name.clone();
-
-                // Decide effective cursor: override takes precedence over plan cursor
-                let effective_cursor = cursor_override.or(plan_cursor.as_ref());
-
-                // Extract cursor parameters for storage
-                let (start_key, limit) = Cursor::convert_to_page_params(effective_cursor);
-
-                let documents_stream = async_stream::stream! {
-                    match storage.scan_table(&database, &table_name, start_key.clone(), limit, None, None).await {
-                        Ok(mut stream) => {
-                            while let Some(result) = stream.next().await {
-                                match result {
-                                    Ok(doc) => {
-                                        yield Ok(Datum::from(doc));
-                                    }
-                                    Err(e) => yield Err(e),
-                                }
-                            }
-                        }
-                        Err(e) => yield Err(e),
-                    }
-                };
-
-                Ok(Box::pin(documents_stream))
-            }
-
-            PlanNode::Get { table_ref, key, .. } => {
-                let database = table_ref
-                    .database
-                    .as_ref()
-                    .map(|d| d.name.clone())
-                    .unwrap_or_else(|| crate::storage::DEFAULT_DATABASE.to_string());
-
-                let storage = self.storage.clone();
-                let table_name = table_ref.name.clone();
-                let key = key.clone();
-
-                let documents_stream = async_stream::stream! {
-                    match storage.get(&database, &table_name, &key).await {
-                        Ok(Some(doc)) => {
-                            yield Ok(Datum::from(doc));
-                        }
-                        Ok(None) => {
-                            // No document found - don't yield anything
-                        }
-                        Err(e) => yield Err(e),
-                    }
-                };
-
-                Ok(Box::pin(documents_stream))
-            }
-
-            PlanNode::GetAll {
-                table_ref,
-                keys,
-                cursor: plan_cursor,
-                ..
-            } => {
-                let database = table_ref
-                    .database
-                    .as_ref()
-                    .map(|d| d.name.clone())
-                    .unwrap_or_else(|| crate::storage::DEFAULT_DATABASE.to_string());
-
-                // Create a stream from the storage get_all operation
-                let storage = self.storage.clone();
-                let table_name = table_ref.name.clone();
-                let keys = keys.clone();
-
-                // Decide effective cursor: override takes precedence over plan cursor
-                let effective_cursor = cursor_override.or(plan_cursor.as_ref());
-
-                // Extract cursor parameters for storage
-                let (start_key, limit) = Cursor::convert_to_page_params(effective_cursor);
-
-                let documents_stream = async_stream::stream! {
-                    match storage.stream_get_all(&database, &table_name, &keys, start_key.clone(), limit, None).await {
-                        Ok(mut stream) => {
-                            while let Some(result) = stream.next().await {
-                                match result {
-                                    Ok(doc) => {
-                                        yield Ok(Datum::from(doc));
-                                    }
-                                    Err(e) => yield Err(e),
-                                }
-                            }
-                        }
-                        Err(e) => yield Err(e),
-                    }
-                };
-
-                Ok(Box::pin(documents_stream))
-            }
-
-            _ => {
-                // For unsupported plan types, return empty stream
-                let empty_stream = stream::empty();
-                Ok(Box::pin(empty_stream))
-            }
         }
     }
 }

@@ -408,6 +408,15 @@ export interface CountResult {
 }
 
 export interface PluckResult {
+  /** Single document result (from get-like sources) */
+  document?:
+    | Datum
+    | undefined;
+  /** Multiple documents result */
+  collection?: PluckCollectionResult | undefined;
+}
+
+export interface PluckCollectionResult {
   documents: Datum[];
   cursor?: Cursor | undefined;
 }
@@ -4434,11 +4443,73 @@ export const CountResult: MessageFns<CountResult> = {
 };
 
 function createBasePluckResult(): PluckResult {
-  return { documents: [], cursor: undefined };
+  return { document: undefined, collection: undefined };
 }
 
 export const PluckResult: MessageFns<PluckResult> = {
   encode(message: PluckResult, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.document !== undefined) {
+      Datum.encode(message.document, writer.uint32(10).fork()).join();
+    }
+    if (message.collection !== undefined) {
+      PluckCollectionResult.encode(message.collection, writer.uint32(18).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): PluckResult {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBasePluckResult();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.document = Datum.decode(reader, reader.uint32());
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.collection = PluckCollectionResult.decode(reader, reader.uint32());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<PluckResult>): PluckResult {
+    return PluckResult.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<PluckResult>): PluckResult {
+    const message = createBasePluckResult();
+    message.document = (object.document !== undefined && object.document !== null)
+      ? Datum.fromPartial(object.document)
+      : undefined;
+    message.collection = (object.collection !== undefined && object.collection !== null)
+      ? PluckCollectionResult.fromPartial(object.collection)
+      : undefined;
+    return message;
+  },
+};
+
+function createBasePluckCollectionResult(): PluckCollectionResult {
+  return { documents: [], cursor: undefined };
+}
+
+export const PluckCollectionResult: MessageFns<PluckCollectionResult> = {
+  encode(message: PluckCollectionResult, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
     for (const v of message.documents) {
       Datum.encode(v!, writer.uint32(10).fork()).join();
     }
@@ -4448,10 +4519,10 @@ export const PluckResult: MessageFns<PluckResult> = {
     return writer;
   },
 
-  decode(input: BinaryReader | Uint8Array, length?: number): PluckResult {
+  decode(input: BinaryReader | Uint8Array, length?: number): PluckCollectionResult {
     const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
     const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBasePluckResult();
+    const message = createBasePluckCollectionResult();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -4480,11 +4551,11 @@ export const PluckResult: MessageFns<PluckResult> = {
     return message;
   },
 
-  create(base?: DeepPartial<PluckResult>): PluckResult {
-    return PluckResult.fromPartial(base ?? {});
+  create(base?: DeepPartial<PluckCollectionResult>): PluckCollectionResult {
+    return PluckCollectionResult.fromPartial(base ?? {});
   },
-  fromPartial(object: DeepPartial<PluckResult>): PluckResult {
-    const message = createBasePluckResult();
+  fromPartial(object: DeepPartial<PluckCollectionResult>): PluckCollectionResult {
+    const message = createBasePluckCollectionResult();
     message.documents = object.documents?.map((e) => Datum.fromPartial(e)) || [];
     message.cursor = (object.cursor !== undefined && object.cursor !== null)
       ? Cursor.fromPartial(object.cursor)

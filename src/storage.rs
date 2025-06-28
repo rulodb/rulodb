@@ -722,11 +722,11 @@ impl StorageBackend for DefaultStorage {
 
         let inner_db = self.inner.clone();
         let table_name = format_table_name(db, table);
-        let limit = limit.unwrap_or(DEFAULT_STREAMING_LIMIT);
+        // Don't apply artificial limits - use provided limit or no limit at all
         let skip = skip.unwrap_or(0);
         let read_opts = Self::create_read_opts();
-        // Ensure channel capacity is at least 1, even if limit is 0
-        let channel_capacity = limit.clamp(1, 1000);
+        // Set channel capacity based on limit or use default
+        let channel_capacity = limit.unwrap_or(1000).clamp(1, 1000);
         let (tx, rx) = mpsc::channel(channel_capacity);
 
         spawn_blocking(move || {
@@ -744,7 +744,13 @@ impl StorageBackend for DefaultStorage {
                 _ => iterator.skip(1 + skip),
             };
 
-            for res in iterator.take(limit) {
+            // Apply limit only if explicitly provided
+            let limited_iterator: Box<dyn Iterator<Item = _>> = match limit {
+                Some(l) => Box::new(iterator.take(l)),
+                None => Box::new(iterator),
+            };
+
+            for res in limited_iterator {
                 match res {
                     Ok((_, v)) => match parse_doc(v.as_ref()) {
                         Ok(doc) => {
@@ -818,10 +824,10 @@ impl StorageBackend for DefaultStorage {
 
         let inner_db = self.inner.clone();
         let read_opts = Self::create_read_opts();
-        let limit = limit.unwrap_or(DEFAULT_STREAMING_LIMIT);
+        // Don't apply artificial limits - use provided limit or no limit at all
         let skip = skip.unwrap_or(0);
-        // Ensure channel capacity is at least 1, even if limit is 0
-        let channel_capacity = limit.clamp(1, 1000);
+        // Set channel capacity based on limit or use default
+        let channel_capacity = limit.unwrap_or(1000).clamp(1, 1000);
         let (tx, rx) = mpsc::channel(channel_capacity);
 
         spawn_blocking(move || {
@@ -839,7 +845,13 @@ impl StorageBackend for DefaultStorage {
                 .iterator_cf_opt(&cf, read_opts, mode)
                 .skip(if start_key.is_some() { 1 + skip } else { skip });
 
-            for res in iterator.take(limit) {
+            // Apply limit only if explicitly provided
+            let limited_iterator: Box<dyn Iterator<Item = _>> = match limit {
+                Some(l) => Box::new(iterator.take(l)),
+                None => Box::new(iterator),
+            };
+
+            for res in limited_iterator {
                 match res {
                     Ok((key_bytes, _)) => match String::from_utf8(key_bytes.to_vec()) {
                         Ok(db_name) => {
@@ -885,9 +897,9 @@ impl StorageBackend for DefaultStorage {
         let opts = self.opts.clone();
         let path = self.path.clone();
         let db = db.to_string();
-        let limit = limit.unwrap_or(DEFAULT_STREAMING_LIMIT);
+        // Don't apply artificial limits - use provided limit or no limit at all
         let skip = skip.unwrap_or(0);
-        let channel_capacity = limit.clamp(1, 1000);
+        let channel_capacity = limit.unwrap_or(1000).clamp(1, 1000);
         let (tx, rx) = mpsc::channel(channel_capacity);
 
         spawn_blocking(move || {
@@ -912,8 +924,11 @@ impl StorageBackend for DefaultStorage {
                 tables.retain(|table| table >= &start_key);
             }
 
-            // Apply skip and limit
-            let tables: Vec<String> = tables.into_iter().skip(skip).take(limit).collect();
+            // Apply skip and limit (only if limit is provided)
+            let tables: Vec<String> = match limit {
+                Some(l) => tables.into_iter().skip(skip).take(l).collect(),
+                None => tables.into_iter().skip(skip).collect(),
+            };
 
             for table in tables {
                 if tx.blocking_send(Ok(table)).is_err() {
@@ -949,10 +964,10 @@ impl StorageBackend for DefaultStorage {
         let inner_db = self.inner.clone();
         let table_name = format_table_name(db, table);
         let keys = keys.to_vec();
-        let limit = limit.unwrap_or(DEFAULT_STREAMING_LIMIT);
+        // Don't apply artificial limits - use provided limit or no limit at all
         let skip = skip.unwrap_or(0);
-        // Ensure channel capacity is at least 1, even if limit is 0
-        let channel_capacity = limit.clamp(1, 1000);
+        // Set channel capacity based on limit or use default
+        let channel_capacity = limit.unwrap_or(1000).clamp(1, 1000);
         let (tx, rx) = mpsc::channel(channel_capacity);
 
         spawn_blocking(move || {
@@ -971,9 +986,11 @@ impl StorageBackend for DefaultStorage {
                 filtered_keys = filtered_keys.into_iter().skip(start_index).collect();
             }
 
-            // Apply skip and limit
-            let filtered_keys: Vec<String> =
-                filtered_keys.into_iter().skip(skip).take(limit).collect();
+            // Apply skip and limit (only if limit is provided)
+            let filtered_keys: Vec<String> = match limit {
+                Some(l) => filtered_keys.into_iter().skip(skip).take(l).collect(),
+                None => filtered_keys.into_iter().skip(skip).collect(),
+            };
 
             for key in filtered_keys {
                 match inner_db.get_cf_opt(&cf, &key, &Self::create_read_opts()) {
