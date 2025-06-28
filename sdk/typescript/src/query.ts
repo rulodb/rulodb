@@ -403,6 +403,63 @@ export class RQuery<
     );
   }
 
+  /**
+   * Pluck specific fields from documents (available on TableQuery and StreamQuery)
+   */
+  pluck<TResult = TDoc, K extends NestedKeyOf<TResult> = NestedKeyOf<TResult>>(
+    this: RQuery<TableQuery<TDoc> | StreamQuery<TDoc>, TDbName, TDoc>,
+    ...fields: K[]
+  ): RQuery<StreamQuery<TResult>, TDbName, TResult>;
+  pluck<TResult = TDoc, K extends NestedKeyOf<TResult> = NestedKeyOf<TResult>>(
+    this: RQuery<TableQuery<TDoc> | StreamQuery<TDoc>, TDbName, TDoc>,
+    fields: K[]
+  ): RQuery<StreamQuery<TResult>, TDbName, TResult>;
+  pluck<TResult = TDoc, K extends NestedKeyOf<TResult> = NestedKeyOf<TResult>>(
+    this: RQuery<TableQuery<TDoc> | StreamQuery<TDoc>, TDbName, TDoc>,
+    fields: K[],
+    options: { separator?: string }
+  ): RQuery<StreamQuery<TResult>, TDbName, TResult>;
+  pluck<TResult = TDoc, K extends NestedKeyOf<TResult> = NestedKeyOf<TResult>>(
+    fieldsOrFirst: K[] | K,
+    ...args: unknown[]
+  ): RQuery<StreamQuery<TResult>, TDbName, TResult> {
+    let fields: string[];
+    let separator = '.';
+
+    if (Array.isArray(fieldsOrFirst)) {
+      fields = fieldsOrFirst;
+      if (
+        args.length > 0 &&
+        typeof args[0] === 'object' &&
+        args[0] !== null &&
+        !Array.isArray(args[0])
+      ) {
+        separator = (args[0] as { separator?: string }).separator || '.';
+      }
+    } else {
+      fields = [fieldsOrFirst, ...(args as K[])];
+    }
+
+    const fieldRefs = fields.map((field) => ({
+      path: String(field).split(separator),
+      separator
+    }));
+
+    const query: Query = {
+      pluck: {
+        source: this._query,
+        fields: fieldRefs
+      }
+    };
+
+    // Always return stream query type - the actual behavior is handled at runtime by the backend
+    return new RQuery<StreamQuery<TResult>, TDbName, TResult>(
+      query,
+      { _type: 'stream', _docType: undefined as TResult },
+      this._dbName
+    );
+  }
+
   // ========== Modification Operations ==========
 
   /**
@@ -411,7 +468,7 @@ export class RQuery<
   insert(
     this: RQuery<TableQuery<TDoc>, TDbName, TDoc>,
     documents: TDoc | TDoc[]
-  ): RQuery<ValueQuery<{ inserted: number; generated_keys: string[] }>, TDbName, TDoc> {
+  ): RQuery<ValueQuery<{ inserted: number; generatedKeys: string[] }>, TDbName, TDoc> {
     const docs = Array.isArray(documents) ? documents : [documents];
     const datumObjects = docs.map((doc) => this.convertObjectToDatumObject(doc));
 
@@ -421,11 +478,11 @@ export class RQuery<
         documents: datumObjects
       }
     };
-    return new RQuery<ValueQuery<{ inserted: number; generated_keys: string[] }>, TDbName, TDoc>(
+    return new RQuery<ValueQuery<{ inserted: number; generatedKeys: string[] }>, TDbName, TDoc>(
       query,
       { _type: 'value', _valueType: undefined } as unknown as ValueQuery<{
         inserted: number;
-        generated_keys: string[];
+        generatedKeys: string[];
       }>,
       this._dbName
     );

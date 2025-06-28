@@ -91,7 +91,8 @@ impl Explainer {
             | PlanNode::OrderBy { source, .. }
             | PlanNode::Limit { source, .. }
             | PlanNode::Skip { source, .. }
-            | PlanNode::Count { source, .. } => {
+            | PlanNode::Count { source, .. }
+            | PlanNode::Pluck { source, .. } => {
                 self.explain_node(source, depth + 1, nodes);
             }
             PlanNode::Subquery { query, .. } => {
@@ -330,6 +331,17 @@ impl Explainer {
                 vec![("Count".to_string(), count.to_string())],
             ),
             PlanNode::Count { .. } => ("Count".to_string(), vec![]),
+            PlanNode::Pluck { fields, .. } => (
+                "Pluck".to_string(),
+                vec![(
+                    "Fields".to_string(),
+                    fields
+                        .iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(", "),
+                )],
+            ),
             PlanNode::Subquery { .. } => ("Subquery".to_string(), vec![]),
         }
     }

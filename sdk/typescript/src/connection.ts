@@ -345,6 +345,27 @@ export class Connection extends EventEmitter {
       );
     }
 
+    if (queryResult.pluck) {
+      // Handle new PluckResult structure with oneof result
+      if (queryResult.pluck.document) {
+        // Single document result
+        return {
+          result: this.convertDatum(queryResult.pluck.document),
+          metadata: resultMetadata
+        };
+      } else if (queryResult.pluck.collection) {
+        // Collection result with cursor
+        return this.convertArrayResult(
+          queryResult.pluck.collection.documents,
+          queryResult.pluck.collection.cursor,
+          resultMetadata
+        );
+      } else {
+        // Fallback for backwards compatibility
+        return this.convertArrayResult([], undefined, resultMetadata);
+      }
+    }
+
     // Handle operation results
     if (queryResult.insert) {
       return {

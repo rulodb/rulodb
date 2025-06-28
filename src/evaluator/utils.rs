@@ -1,4 +1,4 @@
-use crate::ast::{Datum, DatumObject, Document, FieldRef, datum};
+use crate::ast::{Datum, FieldRef, datum, query_result};
 use crate::evaluator::error::EvalError;
 
 /// Extract a field value from a datum using field name
@@ -109,17 +109,6 @@ pub fn bool_datum(b: bool) -> Datum {
     }
 }
 
-/// Conversion utilities between Document and Datum
-impl From<Document> for Datum {
-    fn from(doc: Document) -> Self {
-        Datum {
-            value: Some(datum::Value::Object(DatumObject { fields: doc })),
-        }
-    }
-}
-
-impl From<&DatumObject> for Document {
-    fn from(obj: &DatumObject) -> Self {
-        obj.fields.clone()
-    }
+pub fn is_single_doc_source(source_result: &query_result::Result) -> bool {
+    matches!(source_result, query_result::Result::Get(_))
 }

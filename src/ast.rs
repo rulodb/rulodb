@@ -33,6 +33,14 @@ impl std::fmt::Display for datum::Value {
     }
 }
 
+impl From<Document> for Datum {
+    fn from(fields: Document) -> Self {
+        Datum {
+            value: Some(crate::ast::datum::Value::Object(DatumObject { fields })),
+        }
+    }
+}
+
 impl std::fmt::Display for Datum {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match &self.value {
@@ -67,6 +75,18 @@ impl std::fmt::Display for DatumArray {
                 .collect::<Vec<_>>()
                 .join(", ")
         )
+    }
+}
+
+impl From<&DatumObject> for Document {
+    fn from(obj: &DatumObject) -> Self {
+        obj.fields.clone()
+    }
+}
+
+impl std::fmt::Display for FieldRef {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.path.join(&self.separator))
     }
 }
 
@@ -512,6 +532,34 @@ mod tests {
         assert_eq!(
             format!("{value}"),
             "-179769313486231570000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+        );
+    }
+
+    #[test]
+    fn test_field_ref_to_string() {
+        assert_eq!(
+            FieldRef {
+                path: vec!["id".to_string()],
+                separator: ".".to_string()
+            }
+            .to_string(),
+            "id"
+        );
+        assert_eq!(
+            FieldRef {
+                path: vec!["table".to_string(), "id".to_string()],
+                separator: ".".to_string()
+            }
+            .to_string(),
+            "table.id"
+        );
+        assert_eq!(
+            FieldRef {
+                path: vec!["table".to_string(), "column".to_string()],
+                separator: "::".to_string()
+            }
+            .to_string(),
+            "table::column"
         );
     }
 }

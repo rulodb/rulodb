@@ -248,7 +248,10 @@ export class Cursor<T> implements AsyncIterable<T> {
     this.originalQuery = query;
 
     const batchSize = this.cursor?.batchSize || 50;
-    this.exhausted = this.items.length < batchSize;
+    // We're exhausted if:
+    // 1. We got fewer items than expected (normal end of data)
+    // 2. We have no startKey for next batch (server indicates no more data)
+    this.exhausted = this.items.length < batchSize || !this.cursor?.startKey;
     this.totalItemsReturned = this.items.length;
 
     this.originalLimit = this.extractLimitFromQuery(query);
@@ -258,13 +261,15 @@ export class Cursor<T> implements AsyncIterable<T> {
    * Async iterator implementation
    */
   async *[Symbol.asyncIterator](): AsyncIterableIterator<T> {
-    while (this.currentIndex < this.items.length || !this.exhausted) {
+    while (this.currentIndex < this.items.length || this.canFetchMore()) {
       while (this.currentIndex < this.items.length) {
         yield this.items[this.currentIndex++];
       }
 
-      if (!this.exhausted && this.hasMore()) {
+      if (this.canFetchMore()) {
         await this.fetchNextBatch();
+      } else {
+        break; // Exit loop if we can't fetch more and have no items left
       }
     }
   }
@@ -310,7 +315,7 @@ export class Cursor<T> implements AsyncIterable<T> {
    * Check if there are more items available
    */
   hasMore(): boolean {
-    return this.currentIndex < this.items.length || (!this.exhausted && this.canFetchMore());
+    return this.currentIndex < this.items.length || this.canFetchMore();
   }
 
   /**
@@ -365,6 +370,24 @@ export class Cursor<T> implements AsyncIterable<T> {
   }
 
   /**
+   * Debug method to inspect cursor state
+   */
+  debugState(): void {
+    console.log('[Cursor Debug State]', {
+      currentIndex: this.currentIndex,
+      itemsLength: this.items.length,
+      exhausted: this.exhausted,
+      totalItemsReturned: this.totalItemsReturned,
+      originalLimit: this.originalLimit,
+      hasMore: this.hasMore(),
+      canFetchMore: this.canFetchMore(),
+      isExhausted: this.isExhausted(),
+      cursor: this.cursor,
+      metadata: this.metadata
+    });
+  }
+
+  /**
    * Fetch the next batch of items from the server
    */
   private async fetchNextBatch(): Promise<void> {
@@ -401,7 +424,7 @@ export class Cursor<T> implements AsyncIterable<T> {
           batchSize: result.cursor?.batchSize || this.cursor.batchSize
         };
 
-        const expectedBatchSize = this.cursor?.batchSize || 50;
+        const expectedBatchSize = this.cursor?.batchSize || 1000;
         this.exhausted =
           newItems.length < expectedBatchSize ||
           !result.cursor?.startKey ||
@@ -430,15 +453,35 @@ export class Cursor<T> implements AsyncIterable<T> {
       return query.limit.count;
     }
 
-    // Check if limit is nested in other operations
-    if (query.skip?.source) {
-      return this.extractLimitFromQuery(query.skip.source as Query);
-    }
-    if (query.filter?.source) {
-      return this.extractLimitFromQuery(query.filter.source as Query);
-    }
-    if (query.orderBy?.source) {
-      return this.extractLimitFromQuery(query.orderBy.source as Query);
+    // Check all operations that can have a source for nested limits
+    const operationsWithSource = [
+      'skip',
+      'filter',
+      'orderBy',
+      'table',
+      'get',
+      'getAll',
+      'count',
+      'pluck',
+      'insert',
+      'update',
+      'delete',
+      'tableCreate',
+      'tableDrop',
+      'databaseCreate',
+      'databaseDrop',
+      'tableList',
+      'databaseList'
+    ] as const;
+
+    for (const op of operationsWithSource) {
+      const operation = query[op as keyof Query] as { source?: Query } | undefined;
+      if (operation?.source) {
+        const nestedLimit = this.extractLimitFromQuery(operation.source);
+        if (nestedLimit !== undefined) {
+          return nestedLimit;
+        }
+      }
     }
 
     return undefined;

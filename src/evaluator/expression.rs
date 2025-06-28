@@ -196,6 +196,7 @@ impl ExpressionEvaluator {
     }
 
     /// Check if an expression evaluates to a boolean value
+    #[allow(clippy::only_used_in_recursion)]
     pub fn is_boolean_expression(&self, expr: &Expression) -> bool {
         match &expr.expr {
             Some(expression::Expr::Literal(datum)) => {
@@ -219,6 +220,15 @@ impl ExpressionEvaluator {
                 matches!(UnaryOperator::try_from(unary_op.op), Ok(UnaryOperator::Not))
             }
             Some(expression::Expr::Match(_)) => true,
+            Some(expression::Expr::Subquery(query)) => {
+                // Recursively check if the subquery contains a boolean expression
+                match &query.kind {
+                    Some(crate::ast::query::Kind::Expression(inner_expr)) => {
+                        self.is_boolean_expression(inner_expr)
+                    }
+                    _ => false,
+                }
+            }
             _ => false,
         }
     }

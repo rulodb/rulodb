@@ -106,6 +106,13 @@ pub enum PlanNode {
         cost: f64,
     },
 
+    // Pluck
+    Pluck {
+        source: Box<PlanNode>,
+        fields: Vec<FieldRef>,
+        cost: f64,
+    },
+
     // Subquery
     Subquery {
         query: Box<PlanNode>,
@@ -135,6 +142,7 @@ impl PlanNode {
             PlanNode::Limit { cost, .. } => *cost,
             PlanNode::Skip { cost, .. } => *cost,
             PlanNode::Count { cost, .. } => *cost,
+            PlanNode::Pluck { cost, .. } => *cost,
             PlanNode::Subquery { cost, .. } => *cost,
         }
     }
@@ -166,6 +174,7 @@ impl PlanNode {
                 (source.estimated_rows() - *count as f64).max(0.0)
             }
             PlanNode::Count { .. } => 1.0,
+            PlanNode::Pluck { source, .. } => source.estimated_rows(),
             PlanNode::Subquery { query, .. } => query.estimated_rows(),
         }
     }
@@ -314,6 +323,18 @@ impl PartialEq for PlanNode {
                 },
             ) => s1 == s2 && c1 == c2,
             (PlanNode::Count { source: s1, .. }, PlanNode::Count { source: s2, .. }) => s1 == s2,
+            (
+                PlanNode::Pluck {
+                    source: s1,
+                    fields: f1,
+                    ..
+                },
+                PlanNode::Pluck {
+                    source: s2,
+                    fields: f2,
+                    ..
+                },
+            ) => s1 == s2 && f1 == f2,
             (PlanNode::Subquery { query: q1, .. }, PlanNode::Subquery { query: q2, .. }) => {
                 q1 == q2
             }

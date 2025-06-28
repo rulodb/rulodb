@@ -1,5 +1,8 @@
 use crate::EvalError;
-use crate::ast::{Cursor, FieldRef, OrderByField, query_result};
+use crate::ast::{
+    Cursor, FieldRef, GetAllResult, GetResult, MatchExpr, OrderByField, Query, pluck_result,
+    query_result,
+};
 use crate::evaluator::database::DatabaseOperations;
 use crate::evaluator::expression::ExpressionEvaluator;
 use crate::evaluator::query::QueryProcessor;
@@ -266,6 +269,44 @@ fn test_is_boolean_expression() {
         expr: Some(Expr::Literal(int_datum(42))),
     };
     assert!(!evaluator.is_boolean_expression(&int_expr));
+
+    // Test subquery with boolean expression (match)
+    let match_expr = Expression {
+        expr: Some(Expr::Match(Box::new(MatchExpr {
+            value: Some(Box::new(Expression {
+                expr: Some(Expr::Field(FieldRef {
+                    path: vec!["email".to_string()],
+                    separator: ".".to_string(),
+                })),
+            })),
+            pattern: "@example\\.com$".to_string(),
+            flags: "".to_string(),
+        }))),
+    };
+    let subquery_expr = Expression {
+        expr: Some(Expr::Subquery(Box::new(Query {
+            kind: Some(crate::ast::query::Kind::Expression(Box::new(match_expr))),
+            cursor: None,
+            options: None,
+        }))),
+    };
+    assert!(evaluator.is_boolean_expression(&subquery_expr));
+
+    // Test subquery with non-boolean expression
+    let field_expr = Expression {
+        expr: Some(Expr::Field(FieldRef {
+            path: vec!["name".to_string()],
+            separator: ".".to_string(),
+        })),
+    };
+    let non_bool_subquery_expr = Expression {
+        expr: Some(Expr::Subquery(Box::new(Query {
+            kind: Some(crate::ast::query::Kind::Expression(Box::new(field_expr))),
+            cursor: None,
+            options: None,
+        }))),
+    };
+    assert!(!evaluator.is_boolean_expression(&non_bool_subquery_expr));
 }
 
 #[test]
@@ -628,5 +669,454 @@ async fn test_get_document() {
         assert!(get_result.document.is_some());
     } else {
         panic!("Expected Get result");
+    }
+}
+
+fn create_pluck_test_datum(id: &str, name: &str, age: i64, city: &str) -> Datum {
+    let mut fields = HashMap::new();
+    fields.insert("id".to_string(), string_datum(id.to_string()));
+    fields.insert("name".to_string(), string_datum(name.to_string()));
+    fields.insert("age".to_string(), int_datum(age));
+    fields.insert("city".to_string(), string_datum(city.to_string()));
+
+    Datum {
+        value: Some(datum::Value::Object(DatumObject { fields })),
+    }
+}
+
+fn create_nested_test_datum(id: &str, name: &str, street: &str, city: &str) -> Datum {
+    let mut address_fields = HashMap::new();
+    address_fields.insert("street".to_string(), string_datum(street.to_string()));
+    address_fields.insert("city".to_string(), string_datum(city.to_string()));
+
+    let nested_obj = Datum {
+        value: Some(datum::Value::Object(DatumObject {
+            fields: address_fields,
+        })),
+    };
+
+    let mut fields = HashMap::new();
+    fields.insert("id".to_string(), string_datum(id.to_string()));
+    fields.insert("name".to_string(), string_datum(name.to_string()));
+    fields.insert("address".to_string(), nested_obj);
+
+    Datum {
+        value: Some(datum::Value::Object(DatumObject { fields })),
+    }
+}
+
+#[tokio::test]
+async fn test_pluck_documents() {
+    let storage = Arc::new(MemoryStorage::new());
+    let mut stats = EvalStats::new();
+    let query_processor = QueryProcessor::new(storage.clone());
+
+    // Create test documents
+    let docs = vec![
+        create_pluck_test_datum("1", "Alice", 25, "New York"),
+        create_pluck_test_datum("2", "Bob", 30, "San Francisco"),
+        create_pluck_test_datum("3", "Charlie", 35, "Chicago"),
+    ];
+
+    // Create source result with documents
+    let source_result = create_test_result(docs);
+
+    // Define fields to pluck
+    let field_refs = vec![
+        FieldRef {
+            path: vec!["name".to_string()],
+            separator: ".".to_string(),
+        },
+        FieldRef {
+            path: vec!["age".to_string()],
+            separator: ".".to_string(),
+        },
+    ];
+
+    let result = query_processor
+        .pluck_documents_streaming(source_result, None, &field_refs, &mut stats)
+        .await;
+
+    assert!(result.is_ok());
+
+    if let Ok(query_result::Result::Pluck(pluck_result)) = result {
+        if let Some(pluck_result::Result::Collection(collection)) = &pluck_result.result {
+            assert_eq!(collection.documents.len(), 3);
+
+            // Check that only name and age fields are present
+            for doc in &collection.documents {
+                if let Some(datum::Value::Object(obj)) = &doc.value {
+                    assert_eq!(obj.fields.len(), 2);
+                    assert!(obj.fields.contains_key("name"));
+                    assert!(obj.fields.contains_key("age"));
+                    assert!(!obj.fields.contains_key("city"));
+                } else {
+                    panic!("Expected object datum");
+                }
+            }
+
+            // Verify the first document content
+            if let Some(datum::Value::Object(obj)) = &collection.documents[0].value {
+                if let Some(datum::Value::String(name)) = &obj.fields.get("name").unwrap().value {
+                    assert_eq!(name, "Alice");
+                }
+                if let Some(datum::Value::Int(age)) = &obj.fields.get("age").unwrap().value {
+                    assert_eq!(*age, 25);
+                }
+            }
+        } else {
+            panic!("Expected collection result");
+        }
+    } else {
+        panic!("Expected Pluck result");
+    }
+}
+
+#[tokio::test]
+async fn test_pluck_documents_single_field() {
+    let storage = Arc::new(MemoryStorage::new());
+    let mut stats = EvalStats::new();
+    let query_processor = QueryProcessor::new(storage.clone());
+
+    // Create test documents
+    let docs = vec![
+        create_test_datum("1", "Alice", 25),
+        create_test_datum("2", "Bob", 30),
+    ];
+
+    let source_result = create_test_result(docs);
+
+    // Pluck only the name field
+    let field_refs = vec![FieldRef {
+        path: vec!["name".to_string()],
+        separator: ".".to_string(),
+    }];
+
+    let result = query_processor
+        .pluck_documents_streaming(source_result, None, &field_refs, &mut stats)
+        .await;
+
+    assert!(result.is_ok());
+
+    if let Ok(query_result::Result::Pluck(pluck_result)) = result {
+        if let Some(pluck_result::Result::Collection(collection)) = &pluck_result.result {
+            assert_eq!(collection.documents.len(), 2);
+
+            // Check that only name field is present
+            for doc in &collection.documents {
+                if let Some(datum::Value::Object(obj)) = &doc.value {
+                    assert_eq!(obj.fields.len(), 1);
+                    assert!(obj.fields.contains_key("name"));
+                    assert!(!obj.fields.contains_key("age"));
+                } else {
+                    panic!("Expected object datum");
+                }
+            }
+        } else {
+            panic!("Expected collection result");
+        }
+    } else {
+        panic!("Expected Pluck result");
+    }
+}
+
+#[tokio::test]
+async fn test_pluck_documents_nested_field() {
+    let storage = Arc::new(MemoryStorage::new());
+    let mut stats = EvalStats::new();
+    let query_processor = QueryProcessor::new(storage.clone());
+
+    // Create test documents with nested objects
+    let docs = vec![
+        create_nested_test_datum("1", "Alice", "123 Main St", "New York"),
+        create_nested_test_datum("2", "Bob", "456 Oak Ave", "San Francisco"),
+    ];
+
+    let source_result = create_test_result(docs);
+
+    // Pluck nested field
+    let field_refs = vec![
+        FieldRef {
+            path: vec!["name".to_string()],
+            separator: ".".to_string(),
+        },
+        FieldRef {
+            path: vec!["address".to_string(), "city".to_string()],
+            separator: ".".to_string(),
+        },
+    ];
+
+    let result = query_processor
+        .pluck_documents_streaming(source_result, None, &field_refs, &mut stats)
+        .await;
+
+    assert!(result.is_ok());
+
+    if let Ok(query_result::Result::Pluck(pluck_result)) = result {
+        if let Some(pluck_result::Result::Collection(collection)) = &pluck_result.result {
+            assert_eq!(collection.documents.len(), 2);
+
+            // Check that both name and nested field are present
+            for doc in &collection.documents {
+                if let Some(datum::Value::Object(obj)) = &doc.value {
+                    assert_eq!(obj.fields.len(), 2);
+                    assert!(obj.fields.contains_key("name"));
+                    assert!(obj.fields.contains_key("address.city"));
+                } else {
+                    panic!("Expected object datum");
+                }
+            }
+        } else {
+            panic!("Expected collection result");
+        }
+    } else {
+        panic!("Expected Pluck result");
+    }
+}
+
+#[tokio::test]
+async fn test_pluck_documents_empty_source() {
+    let storage = Arc::new(MemoryStorage::new());
+    let mut stats = EvalStats::new();
+    let query_processor = QueryProcessor::new(storage.clone());
+
+    // Create empty source result
+    let source_result = create_test_result(vec![]);
+
+    let field_refs = vec![FieldRef {
+        path: vec!["name".to_string()],
+        separator: ".".to_string(),
+    }];
+
+    let result = query_processor
+        .pluck_documents_streaming(source_result, None, &field_refs, &mut stats)
+        .await;
+
+    assert!(result.is_ok());
+
+    if let Ok(query_result::Result::Pluck(pluck_result)) = result {
+        if let Some(pluck_result::Result::Collection(collection)) = &pluck_result.result {
+            assert_eq!(collection.documents.len(), 0);
+            assert!(collection.cursor.is_none());
+        } else {
+            panic!("Expected collection result");
+        }
+    } else {
+        panic!("Expected Pluck result");
+    }
+}
+
+#[tokio::test]
+async fn test_pluck_documents_with_cursor() {
+    let storage = Arc::new(MemoryStorage::new());
+    let mut stats = EvalStats::new();
+    let query_processor = QueryProcessor::new(storage.clone());
+
+    // Create test documents
+    let docs = vec![
+        create_test_datum("1", "Alice", 25),
+        create_test_datum("2", "Bob", 30),
+    ];
+
+    let source_result = create_test_result(docs);
+
+    let field_refs = vec![FieldRef {
+        path: vec!["name".to_string()],
+        separator: ".".to_string(),
+    }];
+
+    // Create a cursor
+    let cursor = Some(Cursor {
+        start_key: Some("test_key".to_string()),
+        batch_size: Some(10),
+        sort: None,
+    });
+
+    let result = query_processor
+        .pluck_documents_streaming(source_result, cursor, &field_refs, &mut stats)
+        .await;
+
+    assert!(result.is_ok());
+
+    if let Ok(query_result::Result::Pluck(pluck_result)) = result {
+        if let Some(pluck_result::Result::Collection(collection)) = &pluck_result.result {
+            assert_eq!(collection.documents.len(), 2);
+            assert!(collection.cursor.is_none());
+        } else {
+            panic!("Expected collection result");
+        }
+    } else {
+        panic!("Expected Pluck result");
+    }
+}
+
+#[tokio::test]
+async fn test_pluck_documents_with_id_field_cursor() {
+    let storage = Arc::new(MemoryStorage::new());
+    let mut stats = EvalStats::new();
+    let query_processor = QueryProcessor::new(storage.clone());
+
+    // Create test documents
+    let docs = vec![
+        create_test_datum("1", "Alice", 25),
+        create_test_datum("2", "Bob", 30),
+    ];
+
+    let source_result = create_test_result(docs);
+
+    // Pluck both ID and name fields
+    let field_refs = vec![
+        FieldRef {
+            path: vec!["id".to_string()],
+            separator: ".".to_string(),
+        },
+        FieldRef {
+            path: vec!["name".to_string()],
+            separator: ".".to_string(),
+        },
+    ];
+
+    // Create a cursor with small batch size to trigger pagination
+    let cursor = Some(Cursor {
+        start_key: Some("test_key".to_string()),
+        batch_size: Some(1), // Small batch size
+        sort: None,
+    });
+
+    let result = query_processor
+        .pluck_documents_streaming(source_result, cursor, &field_refs, &mut stats)
+        .await;
+
+    assert!(result.is_ok());
+
+    if let Ok(query_result::Result::Pluck(pluck_result)) = result {
+        if let Some(pluck_result::Result::Collection(collection)) = &pluck_result.result {
+            assert_eq!(collection.documents.len(), 2);
+
+            // Check that both ID and name fields are present
+            for doc in &collection.documents {
+                if let Some(datum::Value::Object(obj)) = &doc.value {
+                    assert_eq!(obj.fields.len(), 2);
+                    assert!(obj.fields.contains_key("id"));
+                    assert!(obj.fields.contains_key("name"));
+                } else {
+                    panic!("Expected object datum");
+                }
+            }
+
+            // Since we have ID field and documents exceed batch size, cursor should be generated
+            assert!(collection.cursor.is_some());
+        } else {
+            panic!("Expected collection result");
+        }
+    } else {
+        panic!("Expected Pluck result");
+    }
+}
+
+#[tokio::test]
+async fn test_pluck_source_aware_single_document() {
+    let storage = Arc::new(MemoryStorage::new());
+    let mut stats = EvalStats::new();
+    let query_processor = QueryProcessor::new(storage.clone());
+
+    // Create a single document from Get operation
+    let doc = create_test_datum("1", "Alice", 25);
+    let get_result = query_result::Result::Get(GetResult {
+        document: Some(doc),
+    });
+
+    let field_refs = vec![FieldRef {
+        path: vec!["name".to_string()],
+        separator: ".".to_string(),
+    }];
+
+    let result = query_processor
+        .pluck_documents_streaming(get_result, None, &field_refs, &mut stats)
+        .await;
+
+    // Should return a single document result (not collection)
+    if let Ok(query_result::Result::Pluck(pluck_result)) = result {
+        // Check that result is in single document format
+        if let Some(pluck_result::Result::Document(doc)) = pluck_result.result {
+            if let Some(datum::Value::Object(obj)) = &doc.value {
+                assert_eq!(obj.fields.len(), 1);
+                assert!(obj.fields.contains_key("name"));
+
+                if let Some(name_datum) = obj.fields.get("name") {
+                    if let Some(datum::Value::String(name)) = &name_datum.value {
+                        assert_eq!(name, "Alice");
+                    } else {
+                        panic!("Expected string value for name");
+                    }
+                } else {
+                    panic!("Expected name field");
+                }
+            } else {
+                panic!("Expected object datum");
+            }
+        } else {
+            panic!("Expected single document result for Get source");
+        }
+    } else {
+        panic!("Expected Pluck result");
+    }
+}
+
+#[tokio::test]
+async fn test_pluck_source_aware_collection() {
+    let storage = Arc::new(MemoryStorage::new());
+    let mut stats = EvalStats::new();
+    let query_processor = QueryProcessor::new(storage.clone());
+
+    // Create multiple documents from GetAll operation
+    let docs = vec![
+        create_test_datum("1", "Alice", 25),
+        create_test_datum("2", "Bob", 30),
+    ];
+    let get_all_result = query_result::Result::GetAll(GetAllResult {
+        documents: docs,
+        cursor: None,
+    });
+
+    let field_refs = vec![FieldRef {
+        path: vec!["name".to_string()],
+        separator: ".".to_string(),
+    }];
+
+    let result = query_processor
+        .pluck_documents_streaming(get_all_result, None, &field_refs, &mut stats)
+        .await;
+
+    // Should return a collection result
+    if let Ok(query_result::Result::Pluck(pluck_result)) = result {
+        // Check that result is in collection format
+        if let Some(pluck_result::Result::Collection(collection)) = pluck_result.result {
+            assert_eq!(collection.documents.len(), 2);
+
+            for (i, doc) in collection.documents.iter().enumerate() {
+                if let Some(datum::Value::Object(obj)) = &doc.value {
+                    assert_eq!(obj.fields.len(), 1);
+                    assert!(obj.fields.contains_key("name"));
+
+                    if let Some(name_datum) = obj.fields.get("name") {
+                        if let Some(datum::Value::String(name)) = &name_datum.value {
+                            let expected_name = if i == 0 { "Alice" } else { "Bob" };
+                            assert_eq!(name, expected_name);
+                        } else {
+                            panic!("Expected string value for name");
+                        }
+                    } else {
+                        panic!("Expected name field");
+                    }
+                } else {
+                    panic!("Expected object datum");
+                }
+            }
+        } else {
+            panic!("Expected collection result for GetAll source");
+        }
+    } else {
+        panic!("Expected Pluck result");
     }
 }

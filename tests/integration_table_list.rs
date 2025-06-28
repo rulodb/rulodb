@@ -233,7 +233,7 @@ async fn test_table_list_with_tables() {
     for (i, table_name) in table_names.iter().enumerate() {
         let table_create_query = create_table_create_query(database_name, table_name);
         let table_create_envelope = create_envelope(
-            &format!("{}-table-create-{}", query_id, i + 1),
+            &format!("{query_id}-table-create-{}", i + 1),
             &table_create_query,
         );
 
@@ -243,7 +243,7 @@ async fn test_table_list_with_tables() {
 
         validate_response_envelope(
             &table_create_response,
-            &format!("{}-table-create-{}", query_id, i + 1),
+            &format!("{query_id}-table-create-{}", i + 1),
         )
         .expect("Table create response validation failed");
 

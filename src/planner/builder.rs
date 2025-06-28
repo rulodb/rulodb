@@ -34,27 +34,29 @@ impl PlanBuilder {
     /// Internal method to build a plan from a query
     fn build_query_internal(&mut self, query: &Query) -> PlanResult<PlanNode> {
         match &query.kind {
-            // Expression queries (constants, subqueries)
-            Some(query::Kind::Expression(expr)) => self.build_expression_plan(expr),
-
-            // Table queries
-            Some(query::Kind::Table(table_query)) => self.build_table_query(table_query),
-
-            // Document operations
-            Some(query::Kind::Get(get_query)) => self.build_get_query(get_query),
-            Some(query::Kind::GetAll(get_all_query)) => self.build_get_all_query(get_all_query),
+            // Data Manipulation
             Some(query::Kind::Insert(insert_query)) => self.build_insert_query(insert_query),
             Some(query::Kind::Update(update_query)) => self.build_update_query(update_query),
             Some(query::Kind::Delete(delete_query)) => self.build_delete_query(delete_query),
 
-            // Query modifiers
+            // Querying & Data Retrieval
+            Some(query::Kind::Table(table_query)) => self.build_table_query(table_query),
+            Some(query::Kind::Get(get_query)) => self.build_get_query(get_query),
+            Some(query::Kind::GetAll(get_all_query)) => self.build_get_all_query(get_all_query),
             Some(query::Kind::Filter(filter_query)) => self.build_filter_query(filter_query),
+
+            // Transformations
             Some(query::Kind::OrderBy(order_by_query)) => self.build_order_by_query(order_by_query),
             Some(query::Kind::Limit(limit_query)) => self.build_limit_query(limit_query),
             Some(query::Kind::Skip(skip_query)) => self.build_skip_query(skip_query),
+
+            // Aggregation & Grouping
             Some(query::Kind::Count(count_query)) => self.build_count_query(count_query),
 
-            // Database operations
+            // Document Manipulation
+            Some(query::Kind::Pluck(pluck_query)) => self.build_pluck_query(pluck_query),
+
+            // Schema & Data Modeling
             Some(query::Kind::DatabaseCreate(create_db)) => Ok(PlanNode::CreateDatabase {
                 name: create_db.name.clone(),
                 cost: 1.0,
@@ -67,8 +69,6 @@ impl PlanBuilder {
                 cursor: self.cursor_context.clone(),
                 cost: 1.0,
             }),
-
-            // Table operations
             Some(query::Kind::TableCreate(create_table)) => Ok(PlanNode::CreateTable {
                 table_ref: create_table
                     .table
@@ -91,7 +91,8 @@ impl PlanBuilder {
                 cost: 1.0,
             }),
 
-            // Subquery
+            // Control & Execution
+            Some(query::Kind::Expression(expr)) => self.build_expression_plan(expr),
             Some(query::Kind::Subquery(subquery)) => {
                 let subquery_plan = self.build_query_internal(subquery.query.as_ref().ok_or(
                     PlanError::InvalidExpression("Subquery missing query".to_string()),
@@ -340,6 +341,19 @@ impl PlanBuilder {
         let cost = source_plan.cost();
         Ok(PlanNode::Count {
             source: Box::new(source_plan),
+            cost,
+        })
+    }
+
+    /// Build a plan for a pluck query
+    fn build_pluck_query(&mut self, pluck_query: &Pluck) -> PlanResult<PlanNode> {
+        let source_plan = self.build_query_internal(pluck_query.source.as_ref().ok_or(
+            PlanError::InvalidExpression("Pluck missing source".to_string()),
+        )?)?;
+        let cost = source_plan.cost();
+        Ok(PlanNode::Pluck {
+            source: Box::new(source_plan),
+            fields: pluck_query.fields.clone(),
             cost,
         })
     }

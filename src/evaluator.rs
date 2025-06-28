@@ -333,8 +333,20 @@ impl Evaluator {
                 }
             }
             PlanNode::Count { source, .. } => {
+                let source_result = Box::pin(self.execute_plan(source)).await?;
                 self.query_processor
-                    .count_documents_streaming(source, &mut self.stats)
+                    .count_documents(source_result, &mut self.stats)
+                    .await
+            }
+            PlanNode::Pluck { source, fields, .. } => {
+                let source_result = Box::pin(self.execute_plan(source)).await?;
+                self.query_processor
+                    .pluck_documents_streaming(
+                        source_result,
+                        self.cursor_context.clone(),
+                        fields,
+                        &mut self.stats,
+                    )
                     .await
             }
 
