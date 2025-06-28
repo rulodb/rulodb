@@ -55,6 +55,7 @@ impl PlanBuilder {
 
             // Document Manipulation
             Some(query::Kind::Pluck(pluck_query)) => self.build_pluck_query(pluck_query),
+            Some(query::Kind::Without(without_query)) => self.build_without_query(without_query),
 
             // Schema & Data Modeling
             Some(query::Kind::DatabaseCreate(create_db)) => Ok(PlanNode::CreateDatabase {
@@ -354,6 +355,19 @@ impl PlanBuilder {
         Ok(PlanNode::Pluck {
             source: Box::new(source_plan),
             fields: pluck_query.fields.clone(),
+            cost,
+        })
+    }
+
+    /// Build a plan for a without query
+    fn build_without_query(&mut self, without_query: &Without) -> PlanResult<PlanNode> {
+        let source_plan = self.build_query_internal(without_query.source.as_ref().ok_or(
+            PlanError::InvalidExpression("Without missing source".to_string()),
+        )?)?;
+        let cost = source_plan.cost();
+        Ok(PlanNode::Without {
+            source: Box::new(source_plan),
+            fields: without_query.fields.clone(),
             cost,
         })
     }

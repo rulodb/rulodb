@@ -381,6 +381,25 @@ pub fn decode_response_payload(
                     Some(proto::query_result::Result::Literal(literal_result)) => literal_result
                         .value
                         .ok_or("Missing value in literal result".into()),
+                    Some(proto::query_result::Result::Without(without_result)) => {
+                        match &without_result.result {
+                            Some(proto::without_result::Result::Document(doc)) => Ok(doc.clone()),
+                            Some(proto::without_result::Result::Collection(collection)) => {
+                                Ok(proto::Datum {
+                                    value: Some(proto::datum::Value::Array(proto::DatumArray {
+                                        items: collection.documents.clone(),
+                                        element_type: String::new(),
+                                    })),
+                                })
+                            }
+                            None => Ok(proto::Datum {
+                                value: Some(proto::datum::Value::Array(proto::DatumArray {
+                                    items: vec![],
+                                    element_type: String::new(),
+                                })),
+                            }),
+                        }
+                    }
                     None => Err("No query result found".into()),
                 },
                 Some(proto::response::Result::Error(error_info)) => Err(format!(
@@ -818,6 +837,37 @@ pub fn create_pluck_query(
         }),
         cursor: None,
         kind: Some(proto::query::Kind::Pluck(Box::new(proto::Pluck {
+            source: Some(Box::new(proto::Query {
+                options: None,
+                cursor: None,
+                kind: Some(proto::query::Kind::Table(proto::Table {
+                    table: Some(proto::TableRef {
+                        database: Some(proto::DatabaseRef {
+                            name: database_name.to_string(),
+                        }),
+                        name: table_name.to_string(),
+                    }),
+                })),
+            })),
+            fields,
+        }))),
+    }
+}
+
+/// Helper function to create a without query
+#[allow(dead_code)]
+pub fn create_without_query(
+    database_name: &str,
+    table_name: &str,
+    fields: Vec<proto::FieldRef>,
+) -> proto::Query {
+    proto::Query {
+        options: Some(proto::QueryOptions {
+            timeout_ms: 30000,
+            explain: false,
+        }),
+        cursor: None,
+        kind: Some(proto::query::Kind::Without(Box::new(proto::Without {
             source: Some(Box::new(proto::Query {
                 options: None,
                 cursor: None,

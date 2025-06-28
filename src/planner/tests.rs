@@ -1039,3 +1039,268 @@ fn test_pluck_node_partial_eq() {
     assert_eq!(pluck1, pluck2); // Same source and fields
     assert_ne!(pluck1, pluck3); // Different fields
 }
+
+#[test]
+fn test_build_plan_without() {
+    let mut planner = Planner::new();
+
+    // Create a without query
+    let query = proto::Query {
+        options: None,
+        cursor: None,
+        kind: Some(proto::query::Kind::Without(Box::new(proto::Without {
+            source: Some(Box::new(proto::Query {
+                options: None,
+                cursor: None,
+                kind: Some(proto::query::Kind::Table(proto::Table {
+                    table: Some(proto::TableRef {
+                        database: Some(proto::DatabaseRef {
+                            name: "test_db".to_string(),
+                        }),
+                        name: "test_table".to_string(),
+                    }),
+                })),
+            })),
+            fields: vec![
+                proto::FieldRef {
+                    path: vec!["password".to_string()],
+                    separator: ".".to_string(),
+                },
+                proto::FieldRef {
+                    path: vec!["secret".to_string()],
+                    separator: ".".to_string(),
+                },
+            ],
+        }))),
+    };
+
+    let plan = planner.plan(&query).unwrap();
+
+    match plan {
+        PlanNode::Without {
+            source,
+            fields,
+            cost,
+        } => {
+            // Check that the source is a table scan
+            match source.as_ref() {
+                PlanNode::TableScan { table_ref, .. } => {
+                    assert_eq!(table_ref.database.as_ref().unwrap().name, "test_db");
+                    assert_eq!(table_ref.name, "test_table");
+                }
+                _ => panic!("Expected TableScan as source"),
+            }
+
+            // Check fields
+            assert_eq!(fields.len(), 2);
+            assert_eq!(fields[0].path, vec!["password".to_string()]);
+            assert_eq!(fields[1].path, vec!["secret".to_string()]);
+
+            // Check cost is inherited from source
+            assert_eq!(cost, source.cost());
+        }
+        _ => panic!("Expected Without node"),
+    }
+}
+
+#[test]
+fn test_without_missing_source() {
+    let mut planner = Planner::new();
+
+    // Create a without query without source
+    let query = proto::Query {
+        options: None,
+        cursor: None,
+        kind: Some(proto::query::Kind::Without(Box::new(proto::Without {
+            source: None,
+            fields: vec![proto::FieldRef {
+                path: vec!["password".to_string()],
+                separator: ".".to_string(),
+            }],
+        }))),
+    };
+
+    let result = planner.plan(&query);
+    assert!(result.is_err());
+
+    if let Err(PlanError::InvalidExpression(msg)) = result {
+        assert_eq!(msg, "Without missing source");
+    } else {
+        panic!("Expected InvalidExpression error");
+    }
+}
+
+#[test]
+fn test_without_estimated_rows() {
+    let table_ref = create_test_table_ref();
+    let source = PlanNode::TableScan {
+        table_ref,
+        cursor: None,
+        filter: None,
+        cost: 1.0,
+        estimated_rows: 100.0,
+    };
+
+    let without_node = PlanNode::Without {
+        source: Box::new(source),
+        fields: vec![proto::FieldRef {
+            path: vec!["password".to_string()],
+            separator: ".".to_string(),
+        }],
+        cost: 1.0,
+    };
+
+    // Without should inherit estimated rows from source
+    assert_eq!(without_node.estimated_rows(), 100.0);
+}
+
+#[test]
+fn test_without_node_partial_eq() {
+    let table_ref = create_test_table_ref();
+    let source = PlanNode::TableScan {
+        table_ref: table_ref.clone(),
+        cursor: None,
+        filter: None,
+        cost: 1.0,
+        estimated_rows: 100.0,
+    };
+
+    let fields = vec![proto::FieldRef {
+        path: vec!["password".to_string()],
+        separator: ".".to_string(),
+    }];
+
+    let without1 = PlanNode::Without {
+        source: Box::new(source.clone()),
+        fields: fields.clone(),
+        cost: 1.0,
+    };
+
+    let without2 = PlanNode::Without {
+        source: Box::new(source.clone()),
+        fields: fields.clone(),
+        cost: 2.0, // Different cost should still be equal
+    };
+
+    let without3 = PlanNode::Without {
+        source: Box::new(source),
+        fields: vec![proto::FieldRef {
+            path: vec!["secret".to_string()],
+            separator: ".".to_string(),
+        }],
+        cost: 1.0,
+    };
+
+    assert_eq!(without1, without2); // Same source and fields
+    assert_ne!(without1, without3); // Different fields
+}
+
+#[test]
+fn test_without_with_nested_fields() {
+    let mut planner = Planner::new();
+
+    // Create a without query with nested fields
+    let query = proto::Query {
+        options: None,
+        cursor: None,
+        kind: Some(proto::query::Kind::Without(Box::new(proto::Without {
+            source: Some(Box::new(proto::Query {
+                options: None,
+                cursor: None,
+                kind: Some(proto::query::Kind::Table(proto::Table {
+                    table: Some(proto::TableRef {
+                        database: Some(proto::DatabaseRef {
+                            name: "test_db".to_string(),
+                        }),
+                        name: "test_table".to_string(),
+                    }),
+                })),
+            })),
+            fields: vec![
+                proto::FieldRef {
+                    path: vec!["user".to_string(), "password".to_string()],
+                    separator: ".".to_string(),
+                },
+                proto::FieldRef {
+                    path: vec!["metadata".to_string(), "internal".to_string()],
+                    separator: ".".to_string(),
+                },
+            ],
+        }))),
+    };
+
+    let plan = planner.plan(&query).unwrap();
+
+    match plan {
+        PlanNode::Without { fields, .. } => {
+            assert_eq!(fields.len(), 2);
+            assert_eq!(
+                fields[0].path,
+                vec!["user".to_string(), "password".to_string()]
+            );
+            assert_eq!(
+                fields[1].path,
+                vec!["metadata".to_string(), "internal".to_string()]
+            );
+        }
+        _ => panic!("Expected Without node"),
+    }
+}
+
+#[test]
+fn test_without_with_complex_source() {
+    let mut planner = Planner::new();
+
+    // Create a without query with a filter as source
+    let query = proto::Query {
+        options: None,
+        cursor: None,
+        kind: Some(proto::query::Kind::Without(Box::new(proto::Without {
+            source: Some(Box::new(proto::Query {
+                options: None,
+                cursor: None,
+                kind: Some(proto::query::Kind::Filter(Box::new(proto::Filter {
+                    source: Some(Box::new(proto::Query {
+                        options: None,
+                        cursor: None,
+                        kind: Some(proto::query::Kind::Table(proto::Table {
+                            table: Some(proto::TableRef {
+                                database: Some(proto::DatabaseRef {
+                                    name: "test_db".to_string(),
+                                }),
+                                name: "test_table".to_string(),
+                            }),
+                        })),
+                    })),
+                    predicate: Some(Box::new(create_test_binary_expr(
+                        create_test_field_expr("status"),
+                        binary_op::Operator::Eq,
+                        create_test_literal_expr(create_test_datum_string("active")),
+                    ))),
+                }))),
+            })),
+            fields: vec![proto::FieldRef {
+                path: vec!["sensitive_data".to_string()],
+                separator: ".".to_string(),
+            }],
+        }))),
+    };
+
+    let plan = planner.plan(&query).unwrap();
+
+    match plan {
+        PlanNode::Without { source, fields, .. } => {
+            // Check that the source is a filter
+            match source.as_ref() {
+                PlanNode::Filter { .. } => {
+                    // Expected
+                }
+                _ => panic!("Expected Filter as source"),
+            }
+
+            assert_eq!(fields.len(), 1);
+            assert_eq!(fields[0].path, vec!["sensitive_data".to_string()]);
+        }
+        _ => panic!("Expected Without node"),
+    }
+}

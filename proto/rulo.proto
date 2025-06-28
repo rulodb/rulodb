@@ -170,6 +170,7 @@ message Query {
 
     // Document Manipulation
     Pluck pluck = 22;
+    Without without = 23;
 
     // Schema & Data Modeling
     TableCreate table_create = 14;
@@ -223,6 +224,11 @@ message Skip {
 message Count { Query source = 1; }
 
 message Pluck {
+  Query source = 1;
+  repeated FieldRef fields = 2;
+}
+
+message Without {
   Query source = 1;
   repeated FieldRef fields = 2;
 }
@@ -345,6 +351,7 @@ message QueryResult {
     SkipResult skip = 8;
     CountResult count = 9;
     PluckResult pluck = 19;
+    WithoutResult without = 20;
 
     InsertResult insert = 10;
     DeleteResult delete = 11;
@@ -398,12 +405,19 @@ message CountResult { uint64 count = 1; }
 
 message PluckResult {
   oneof result {
-    Datum document = 1; // Single document result (from get-like sources)
-    PluckCollectionResult collection = 2; // Multiple documents result
+    Datum document = 1;
+    CollectionResult collection = 2;
   }
 }
 
-message PluckCollectionResult {
+message WithoutResult {
+  oneof result {
+    Datum document = 1;
+    CollectionResult collection = 2;
+  }
+}
+
+message CollectionResult {
   repeated Datum documents = 1;
   Cursor cursor = 2;
 }

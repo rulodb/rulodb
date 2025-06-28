@@ -84,6 +84,25 @@ impl From<&DatumObject> for Document {
     }
 }
 
+impl From<&Datum> for Document {
+    fn from(datum: &Datum) -> Self {
+        match &datum.value {
+            Some(datum::Value::Object(obj)) => obj.fields.clone(),
+            _ => HashMap::new(),
+        }
+    }
+}
+
+impl From<&Document> for Datum {
+    fn from(doc: &Document) -> Self {
+        Datum {
+            value: Some(datum::Value::Object(DatumObject {
+                fields: doc.clone(),
+            })),
+        }
+    }
+}
+
 impl std::fmt::Display for FieldRef {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.path.join(&self.separator))

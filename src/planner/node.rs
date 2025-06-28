@@ -106,8 +106,13 @@ pub enum PlanNode {
         cost: f64,
     },
 
-    // Pluck
+    // Document Manipulation
     Pluck {
+        source: Box<PlanNode>,
+        fields: Vec<FieldRef>,
+        cost: f64,
+    },
+    Without {
         source: Box<PlanNode>,
         fields: Vec<FieldRef>,
         cost: f64,
@@ -143,6 +148,7 @@ impl PlanNode {
             PlanNode::Skip { cost, .. } => *cost,
             PlanNode::Count { cost, .. } => *cost,
             PlanNode::Pluck { cost, .. } => *cost,
+            PlanNode::Without { cost, .. } => *cost,
             PlanNode::Subquery { cost, .. } => *cost,
         }
     }
@@ -175,6 +181,7 @@ impl PlanNode {
             }
             PlanNode::Count { .. } => 1.0,
             PlanNode::Pluck { source, .. } => source.estimated_rows(),
+            PlanNode::Without { source, .. } => source.estimated_rows(),
             PlanNode::Subquery { query, .. } => query.estimated_rows(),
         }
     }
@@ -330,6 +337,18 @@ impl PartialEq for PlanNode {
                     ..
                 },
                 PlanNode::Pluck {
+                    source: s2,
+                    fields: f2,
+                    ..
+                },
+            ) => s1 == s2 && f1 == f2,
+            (
+                PlanNode::Without {
+                    source: s1,
+                    fields: f1,
+                    ..
+                },
+                PlanNode::Without {
                     source: s2,
                     fields: f2,
                     ..

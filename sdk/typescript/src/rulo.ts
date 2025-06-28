@@ -167,8 +167,9 @@ export interface Query {
     | Count
     | undefined;
   /** Document Manipulation */
-  pluck?:
-    | Pluck
+  pluck?: Pluck | undefined;
+  without?:
+    | Without
     | undefined;
   /** Schema & Data Modeling */
   tableCreate?: TableCreate | undefined;
@@ -224,6 +225,11 @@ export interface Count {
 }
 
 export interface Pluck {
+  source?: Query | undefined;
+  fields: FieldRef[];
+}
+
+export interface Without {
   source?: Query | undefined;
   fields: FieldRef[];
 }
@@ -353,6 +359,7 @@ export interface QueryResult {
   skip?: SkipResult | undefined;
   count?: CountResult | undefined;
   pluck?: PluckResult | undefined;
+  without?: WithoutResult | undefined;
   insert?: InsertResult | undefined;
   delete?: DeleteResult | undefined;
   update?: UpdateResult | undefined;
@@ -408,15 +415,16 @@ export interface CountResult {
 }
 
 export interface PluckResult {
-  /** Single document result (from get-like sources) */
-  document?:
-    | Datum
-    | undefined;
-  /** Multiple documents result */
-  collection?: PluckCollectionResult | undefined;
+  document?: Datum | undefined;
+  collection?: CollectionResult | undefined;
 }
 
-export interface PluckCollectionResult {
+export interface WithoutResult {
+  document?: Datum | undefined;
+  collection?: CollectionResult | undefined;
+}
+
+export interface CollectionResult {
   documents: Datum[];
   cursor?: Cursor | undefined;
 }
@@ -1604,6 +1612,7 @@ function createBaseQuery(): Query {
     skip: undefined,
     count: undefined,
     pluck: undefined,
+    without: undefined,
     tableCreate: undefined,
     tableDrop: undefined,
     databaseCreate: undefined,
@@ -1658,6 +1667,9 @@ export const Query: MessageFns<Query> = {
     }
     if (message.pluck !== undefined) {
       Pluck.encode(message.pluck, writer.uint32(178).fork()).join();
+    }
+    if (message.without !== undefined) {
+      Without.encode(message.without, writer.uint32(186).fork()).join();
     }
     if (message.tableCreate !== undefined) {
       TableCreate.encode(message.tableCreate, writer.uint32(114).fork()).join();
@@ -1805,6 +1817,14 @@ export const Query: MessageFns<Query> = {
           message.pluck = Pluck.decode(reader, reader.uint32());
           continue;
         }
+        case 23: {
+          if (tag !== 186) {
+            break;
+          }
+
+          message.without = Without.decode(reader, reader.uint32());
+          continue;
+        }
         case 14: {
           if (tag !== 114) {
             break;
@@ -1913,6 +1933,9 @@ export const Query: MessageFns<Query> = {
     message.skip = (object.skip !== undefined && object.skip !== null) ? Skip.fromPartial(object.skip) : undefined;
     message.count = (object.count !== undefined && object.count !== null) ? Count.fromPartial(object.count) : undefined;
     message.pluck = (object.pluck !== undefined && object.pluck !== null) ? Pluck.fromPartial(object.pluck) : undefined;
+    message.without = (object.without !== undefined && object.without !== null)
+      ? Without.fromPartial(object.without)
+      : undefined;
     message.tableCreate = (object.tableCreate !== undefined && object.tableCreate !== null)
       ? TableCreate.fromPartial(object.tableCreate)
       : undefined;
@@ -2451,6 +2474,66 @@ export const Pluck: MessageFns<Pluck> = {
   },
   fromPartial(object: DeepPartial<Pluck>): Pluck {
     const message = createBasePluck();
+    message.source = (object.source !== undefined && object.source !== null)
+      ? Query.fromPartial(object.source)
+      : undefined;
+    message.fields = object.fields?.map((e) => FieldRef.fromPartial(e)) || [];
+    return message;
+  },
+};
+
+function createBaseWithout(): Without {
+  return { source: undefined, fields: [] };
+}
+
+export const Without: MessageFns<Without> = {
+  encode(message: Without, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.source !== undefined) {
+      Query.encode(message.source, writer.uint32(10).fork()).join();
+    }
+    for (const v of message.fields) {
+      FieldRef.encode(v!, writer.uint32(18).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): Without {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseWithout();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.source = Query.decode(reader, reader.uint32());
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.fields.push(FieldRef.decode(reader, reader.uint32()));
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<Without>): Without {
+    return Without.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<Without>): Without {
+    const message = createBaseWithout();
     message.source = (object.source !== undefined && object.source !== null)
       ? Query.fromPartial(object.source)
       : undefined;
@@ -3636,6 +3719,7 @@ function createBaseQueryResult(): QueryResult {
     skip: undefined,
     count: undefined,
     pluck: undefined,
+    without: undefined,
     insert: undefined,
     delete: undefined,
     update: undefined,
@@ -3679,6 +3763,9 @@ export const QueryResult: MessageFns<QueryResult> = {
     }
     if (message.pluck !== undefined) {
       PluckResult.encode(message.pluck, writer.uint32(154).fork()).join();
+    }
+    if (message.without !== undefined) {
+      WithoutResult.encode(message.without, writer.uint32(162).fork()).join();
     }
     if (message.insert !== undefined) {
       InsertResult.encode(message.insert, writer.uint32(82).fork()).join();
@@ -3797,6 +3884,14 @@ export const QueryResult: MessageFns<QueryResult> = {
           message.pluck = PluckResult.decode(reader, reader.uint32());
           continue;
         }
+        case 20: {
+          if (tag !== 162) {
+            break;
+          }
+
+          message.without = WithoutResult.decode(reader, reader.uint32());
+          continue;
+        }
         case 10: {
           if (tag !== 82) {
             break;
@@ -3910,6 +4005,9 @@ export const QueryResult: MessageFns<QueryResult> = {
       : undefined;
     message.pluck = (object.pluck !== undefined && object.pluck !== null)
       ? PluckResult.fromPartial(object.pluck)
+      : undefined;
+    message.without = (object.without !== undefined && object.without !== null)
+      ? WithoutResult.fromPartial(object.without)
       : undefined;
     message.insert = (object.insert !== undefined && object.insert !== null)
       ? InsertResult.fromPartial(object.insert)
@@ -4452,7 +4550,7 @@ export const PluckResult: MessageFns<PluckResult> = {
       Datum.encode(message.document, writer.uint32(10).fork()).join();
     }
     if (message.collection !== undefined) {
-      PluckCollectionResult.encode(message.collection, writer.uint32(18).fork()).join();
+      CollectionResult.encode(message.collection, writer.uint32(18).fork()).join();
     }
     return writer;
   },
@@ -4477,7 +4575,7 @@ export const PluckResult: MessageFns<PluckResult> = {
             break;
           }
 
-          message.collection = PluckCollectionResult.decode(reader, reader.uint32());
+          message.collection = CollectionResult.decode(reader, reader.uint32());
           continue;
         }
       }
@@ -4498,18 +4596,80 @@ export const PluckResult: MessageFns<PluckResult> = {
       ? Datum.fromPartial(object.document)
       : undefined;
     message.collection = (object.collection !== undefined && object.collection !== null)
-      ? PluckCollectionResult.fromPartial(object.collection)
+      ? CollectionResult.fromPartial(object.collection)
       : undefined;
     return message;
   },
 };
 
-function createBasePluckCollectionResult(): PluckCollectionResult {
+function createBaseWithoutResult(): WithoutResult {
+  return { document: undefined, collection: undefined };
+}
+
+export const WithoutResult: MessageFns<WithoutResult> = {
+  encode(message: WithoutResult, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.document !== undefined) {
+      Datum.encode(message.document, writer.uint32(10).fork()).join();
+    }
+    if (message.collection !== undefined) {
+      CollectionResult.encode(message.collection, writer.uint32(18).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): WithoutResult {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseWithoutResult();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.document = Datum.decode(reader, reader.uint32());
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.collection = CollectionResult.decode(reader, reader.uint32());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<WithoutResult>): WithoutResult {
+    return WithoutResult.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<WithoutResult>): WithoutResult {
+    const message = createBaseWithoutResult();
+    message.document = (object.document !== undefined && object.document !== null)
+      ? Datum.fromPartial(object.document)
+      : undefined;
+    message.collection = (object.collection !== undefined && object.collection !== null)
+      ? CollectionResult.fromPartial(object.collection)
+      : undefined;
+    return message;
+  },
+};
+
+function createBaseCollectionResult(): CollectionResult {
   return { documents: [], cursor: undefined };
 }
 
-export const PluckCollectionResult: MessageFns<PluckCollectionResult> = {
-  encode(message: PluckCollectionResult, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+export const CollectionResult: MessageFns<CollectionResult> = {
+  encode(message: CollectionResult, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
     for (const v of message.documents) {
       Datum.encode(v!, writer.uint32(10).fork()).join();
     }
@@ -4519,10 +4679,10 @@ export const PluckCollectionResult: MessageFns<PluckCollectionResult> = {
     return writer;
   },
 
-  decode(input: BinaryReader | Uint8Array, length?: number): PluckCollectionResult {
+  decode(input: BinaryReader | Uint8Array, length?: number): CollectionResult {
     const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
     const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBasePluckCollectionResult();
+    const message = createBaseCollectionResult();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -4551,11 +4711,11 @@ export const PluckCollectionResult: MessageFns<PluckCollectionResult> = {
     return message;
   },
 
-  create(base?: DeepPartial<PluckCollectionResult>): PluckCollectionResult {
-    return PluckCollectionResult.fromPartial(base ?? {});
+  create(base?: DeepPartial<CollectionResult>): CollectionResult {
+    return CollectionResult.fromPartial(base ?? {});
   },
-  fromPartial(object: DeepPartial<PluckCollectionResult>): PluckCollectionResult {
-    const message = createBasePluckCollectionResult();
+  fromPartial(object: DeepPartial<CollectionResult>): CollectionResult {
+    const message = createBaseCollectionResult();
     message.documents = object.documents?.map((e) => Datum.fromPartial(e)) || [];
     message.cursor = (object.cursor !== undefined && object.cursor !== null)
       ? Cursor.fromPartial(object.cursor)

@@ -366,6 +366,27 @@ export class Connection extends EventEmitter {
       }
     }
 
+    if (queryResult.without) {
+      // Handle new WithoutResult structure with oneof result
+      if (queryResult.without.document) {
+        // Single document result
+        return {
+          result: this.convertDatum(queryResult.without.document),
+          metadata: resultMetadata
+        };
+      } else if (queryResult.without.collection) {
+        // Collection result with cursor
+        return this.convertArrayResult(
+          queryResult.without.collection.documents,
+          queryResult.without.collection.cursor,
+          resultMetadata
+        );
+      } else {
+        // Fallback for backwards compatibility
+        return this.convertArrayResult([], undefined, resultMetadata);
+      }
+    }
+
     // Handle operation results
     if (queryResult.insert) {
       return {

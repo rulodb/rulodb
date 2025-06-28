@@ -463,6 +463,7 @@ export class Cursor<T> implements AsyncIterable<T> {
       'getAll',
       'count',
       'pluck',
+      'without',
       'insert',
       'update',
       'delete',

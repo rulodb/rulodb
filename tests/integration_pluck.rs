@@ -415,19 +415,31 @@ async fn test_pluck_nested_fields() {
                     "Document {i} should contain 'name' field"
                 );
                 assert!(
-                    obj.fields.contains_key("profile.bio"),
-                    "Document {i} should contain 'profile.bio' field"
+                    obj.fields.contains_key("profile"),
+                    "Document {i} should contain 'profile' field"
                 );
+
+                // Check nested profile structure
+                if let Some(proto::datum::Value::Object(profile_obj)) =
+                    &obj.fields.get("profile").unwrap().value
+                {
+                    assert!(
+                        profile_obj.fields.contains_key("bio"),
+                        "Document {i} profile should contain 'bio' field"
+                    );
+                } else {
+                    panic!("Document {i} profile should be an object");
+                }
                 assert_eq!(
                     obj.fields.len(),
                     3,
-                    "Document {i} should contain only 'id', 'name' and 'profile.bio' fields"
+                    "Document {i} should contain only 'id', 'name' and 'profile' fields"
                 );
             } else {
                 panic!("Document {i} is not an object");
             }
         }
-        println!("✓ All documents contain the expected nested fields");
+        println!("✓ All documents contain the expected nested structure");
     } else {
         panic!("Pluck result is not an array");
     }
@@ -477,27 +489,62 @@ async fn test_pluck_custom_separator() {
 
     println!("✓ Database and table created successfully");
 
-    // Insert test documents with fields that use custom separator
+    // Insert test documents with nested structure that matches the pluck path
     let documents = vec![
         create_datum_object(vec![
             ("id", create_string_datum("pluck_001")),
             ("name", create_string_datum("Alice")),
             (
-                "user::profile::bio",
-                create_string_datum("Software Engineer"),
-            ),
-            (
-                "user::profile::settings::theme",
-                create_string_datum("dark"),
+                "user",
+                proto::Datum {
+                    value: Some(proto::datum::Value::Object(create_datum_object(vec![(
+                        "profile",
+                        proto::Datum {
+                            value: Some(proto::datum::Value::Object(create_datum_object(vec![
+                                ("bio", create_string_datum("Software Engineer")),
+                                (
+                                    "settings",
+                                    proto::Datum {
+                                        value: Some(proto::datum::Value::Object(
+                                            create_datum_object(vec![(
+                                                "theme",
+                                                create_string_datum("dark"),
+                                            )]),
+                                        )),
+                                    },
+                                ),
+                            ]))),
+                        },
+                    )]))),
+                },
             ),
         ]),
         create_datum_object(vec![
             ("id", create_string_datum("pluck_002")),
             ("name", create_string_datum("Bob")),
-            ("user::profile::bio", create_string_datum("Designer")),
             (
-                "user::profile::settings::theme",
-                create_string_datum("light"),
+                "user",
+                proto::Datum {
+                    value: Some(proto::datum::Value::Object(create_datum_object(vec![(
+                        "profile",
+                        proto::Datum {
+                            value: Some(proto::datum::Value::Object(create_datum_object(vec![
+                                ("bio", create_string_datum("Designer")),
+                                (
+                                    "settings",
+                                    proto::Datum {
+                                        value: Some(proto::datum::Value::Object(
+                                            create_datum_object(vec![(
+                                                "theme",
+                                                create_string_datum("light"),
+                                            )]),
+                                        )),
+                                    },
+                                ),
+                            ]))),
+                        },
+                    )]))),
+                },
             ),
         ]),
     ];
@@ -558,19 +605,42 @@ async fn test_pluck_custom_separator() {
                     "Document {i} should contain 'name' field"
                 );
                 assert!(
-                    obj.fields.contains_key("user::profile::bio"),
-                    "Document {i} should contain 'user::profile::bio' field"
+                    obj.fields.contains_key("user"),
+                    "Document {i} should contain 'user' field"
                 );
+
+                // Check nested user structure
+                if let Some(proto::datum::Value::Object(user_obj)) =
+                    &obj.fields.get("user").unwrap().value
+                {
+                    assert!(
+                        user_obj.fields.contains_key("profile"),
+                        "Document {i} user should contain 'profile' field"
+                    );
+
+                    if let Some(proto::datum::Value::Object(profile_obj)) =
+                        &user_obj.fields.get("profile").unwrap().value
+                    {
+                        assert!(
+                            profile_obj.fields.contains_key("bio"),
+                            "Document {i} user.profile should contain 'bio' field"
+                        );
+                    } else {
+                        panic!("Document {i} user.profile should be an object");
+                    }
+                } else {
+                    panic!("Document {i} user should be an object");
+                }
                 assert_eq!(
                     obj.fields.len(),
                     3,
-                    "Document {i} should contain only 'id', 'name' and 'user::profile::bio' fields"
+                    "Document {i} should contain only 'id', 'name' and 'user' fields"
                 );
             } else {
                 panic!("Document {i} is not an object");
             }
         }
-        println!("✓ All documents contain the expected fields with custom separator");
+        println!("✓ All documents contain the expected nested structure with custom separator");
     } else {
         panic!("Pluck result is not an array");
     }
